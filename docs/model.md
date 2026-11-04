@@ -7,7 +7,7 @@ safe to share.
 
 | Field | Type | RMI | Beer Sheva |
 |-------|------|-----|------------|
-| `source` | `str` | `"rmi"` | `"beersheva"` |
+| `source` | `str` | `"rmi"` (`SourceName.RMI`) | `"beersheva"` (`SourceName.BEERSHEVA`) |
 | `source_id` | `str` | `MichrazID` | list-item `ID` from the tender page URL |
 | `title` | `str` | settlement and neighborhood, for example `אלפי מנשה - גבעת טל`. The API has no title field. | `שם מכרז` |
 | `number` | `str \| None` | `MichrazName`, for example `115/2017` | `מספר מכרז`, or None when the row has none |
@@ -20,7 +20,7 @@ safe to share.
 | `url` | `str \| None` | `https://apps.land.gov.il/MichrazimSite/#/michraz/{id}` | `URL` |
 | `documents` | `tuple[Document, ...]` | empty (details endpoint not used yet) | links parsed from `קבצים` |
 | `attribution` | `str` | credit line, always present | credit line, always present |
-| `extra` | `Mapping[str, Any]` | see below | `payment_url`, `raw` |
+| `extra` | `Mapping[str, Any]` | see below (`RmiExtra`) | `payment_url`, `raw` (`BeerShevaExtra`) |
 
 Rules that hold for every source:
 
@@ -34,6 +34,9 @@ Rules that hold for every source:
 deadline is strictly after `now`. A tender with no known deadline counts as closed.
 
 ### RMI `extra`
+
+Keys are the members of `michraz.RmiExtra`, a string enum: `tender.extra[RmiExtra.REGION_CODE]` and
+`tender.extra["region_code"]` are the same lookup.
 
 | Key | Meaning |
 |-----|---------|

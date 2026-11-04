@@ -8,18 +8,40 @@ import shutil
 import sys
 from collections.abc import Sequence
 from datetime import datetime
+from enum import IntEnum
 
 from michraz import _dates
+from michraz._enums import StrEnum
 from michraz._http import DEFAULT_CACHE_DIR
 from michraz._version import __version__
 from michraz.client import Michraz
 from michraz.errors import MichrazError
 from michraz.export import to_csv, to_dicts
 from michraz.models import Tender
-from michraz.sources import BaseSource, BeerShevaSource, RmiSource
+from michraz.sources import BaseSource, SourceName
 
-SOURCE_NAMES = (RmiSource.name, BeerShevaSource.name)
+PROGRAM = "michraz"
 DATE_FORMAT = "%Y-%m-%d %H:%M"
+STATE_OPEN = "open"
+STATE_CLOSED = "closed"
+TABLE_HEADER = ("SOURCE", "NUMBER", "DEADLINE", "STATE")
+TITLE_HEADER = "TITLE"
+
+
+class Command(StrEnum):
+    """Subcommands of the ``michraz`` program."""
+
+    SEARCH = "search"
+    SOURCES = "sources"
+
+
+class ExitCode(IntEnum):
+    """Process exit codes. argparse itself exits with 2 on a usage error."""
+
+    OK = 0
+    ERROR = 1
+
+
 NO_DATE = "-"
 MIN_TITLE_WIDTH = 20
 COLUMN_GAP = 2
@@ -28,21 +50,21 @@ ELLIPSIS = "\u2026"
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="michraz", description="Search Israeli public tenders.")
+    parser = argparse.ArgumentParser(prog=PROGRAM, description="Search Israeli public tenders.")
     parser.add_argument("--version", action="version", version=f"michraz {__version__}")
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--no-cache", action="store_true", help="do not read or write the on-disk cache")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    search = commands.add_parser("search", parents=[common], help="search tenders")
+    search = commands.add_parser(Command.SEARCH.value, parents=[common], help="search tenders")
     search.add_argument("--keyword", "-k", help="text to look for in the title or number")
     search.add_argument("--open", action="store_true", help="only tenders that can still receive submissions")
-    search.add_argument("--source", choices=SOURCE_NAMES, help="search a single source")
+    search.add_argument("--source", choices=[name.value for name in SourceName], help="search a single source")
     search.add_argument("--csv", metavar="FILE", help="also write the results to a CSV file (UTF-8 with BOM)")
     search.add_argument("--json", action="store_true", help="print JSON instead of a table")
 
     commands.add_parser(
-        "sources", parents=[common], help="list sources, their attribution and when each was last fetched"
+        Command.SOURCES.value, parents=[common], help="list sources, their attribution and when each was last fetched"
     )
     return parser
 
@@ -58,9 +80,14 @@ def _clip(text: str, width: int) -> str:
 def _print_table(tenders: Sequence[Tender]) -> None:
     # Hebrew is printed in logical order and the terminal lays it out. The title goes last so the
     # fixed-width columns stay aligned whatever the text direction.
-    header = ("SOURCE", "NUMBER", "DEADLINE", "STATE")
+    header = TABLE_HEADER
     rows = [
-        (t.source, _clip(t.number or NO_DATE, NUMBER_WIDTH), _when(t.deadline), "open" if t.is_open() else "closed")
+        (
+            t.source,
+            _clip(t.number or NO_DATE, NUMBER_WIDTH),
+            _when(t.deadline),
+            STATE_OPEN if t.is_open() else STATE_CLOSED,
+        )
         for t in tenders
     ]
     widths = [max(len(cells[i]) for cells in [header, *rows]) for i in range(len(header))]
@@ -70,7 +97,7 @@ def _print_table(tenders: Sequence[Tender]) -> None:
         fixed = (COLUMN_GAP * " ").join(cell.ljust(width) for cell, width in zip(cells, widths, strict=True))
         return f"{fixed}{COLUMN_GAP * ' '}{title}"
 
-    print(line(header, "TITLE"))
+    print(line(header, TITLE_HEADER))
     for cells, tender in zip(rows, tenders, strict=True):
         print(line(cells, _clip(tender.title, title_width)))
     print(f"\n{len(rows)} tender{'' if len(rows) == 1 else 's'}")
@@ -89,14 +116,14 @@ def _search(args: argparse.Namespace, m: Michraz) -> int:
         _print_table(tenders)
     for message in m.last_errors:
         print(f"warning: {message}", file=sys.stderr)
-    return 0
+    return ExitCode.OK
 
 
 def _sources(m: Michraz) -> int:
     for source in m.sources:
         fetched = source.last_fetched() if isinstance(source, BaseSource) else None
         print(f"{source.name}\n  {source.description}\n  data: {source.attribution}\n  last fetch: {_when(fetched)}")
-    return 0
+    return ExitCode.OK
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -113,7 +140,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
         with Michraz(cache_dir=None if args.no_cache else DEFAULT_CACHE_DIR) as m:
-            return _search(args, m) if args.command == "search" else _sources(m)
+            return _search(args, m) if args.command == Command.SEARCH else _sources(m)
     except MichrazError as exc:
         print(f"michraz: error: {exc}", file=sys.stderr)
-        return 1
+        return ExitCode.ERROR

@@ -5,16 +5,19 @@ from __future__ import annotations
 import unicodedata
 from collections.abc import Iterable
 from datetime import date, datetime, time
+from typing import Final
 
 from michraz import _dates
 from michraz.models import Tender
+
+NORMALIZATION_FORM: Final = "NFKC"
 
 _EARLIEST = datetime.min.replace(tzinfo=_dates.JERUSALEM)
 
 
 def normalize(text: str) -> str:
     """Normalizes text for matching: Unicode NFKC, then case-folded."""
-    return unicodedata.normalize("NFKC", text).casefold()
+    return unicodedata.normalize(NORMALIZATION_FORM, text).casefold()
 
 
 def matches_keyword(tender: Tender, keyword: str) -> bool:

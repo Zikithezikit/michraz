@@ -9,6 +9,9 @@ from typing import Any
 
 from michraz import _dates
 
+RAW_EXTRA_KEY = "raw"
+"""Key under which every source stores the untouched record in ``Tender.extra``."""
+
 
 @dataclass(frozen=True, slots=True)
 class Document:
@@ -44,7 +47,7 @@ class Tender:
         url: Page of the tender on the publisher's site.
         documents: Attached files.
         attribution: Credit line required by the data license. Always keep it with the data.
-        extra: Source-specific fields. The untouched record is under ``extra["raw"]``.
+        extra: Source-specific fields. The untouched record is under ``extra[RAW_EXTRA_KEY]`` (``"raw"``).
     """
 
     source: str

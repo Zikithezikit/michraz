@@ -5,6 +5,8 @@ All notable changes are listed here. Format based on [Keep a Changelog](https://
 ## Unreleased
 
 ### Added
+- Enums instead of loose strings: `SourceName`, `RmiExtra` and `BeerShevaExtra` (keys of `Tender.extra`). Members
+  equal the plain strings, so existing code keeps working.
 - `Michraz` facade: search every source with one call, filter by keyword, open status, source and closing date,
   sorted by deadline.
 - `RmiSource` for Israel Land Authority tenders, with server-side settlement and neighborhood filters and local

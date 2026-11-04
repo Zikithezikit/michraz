@@ -10,9 +10,11 @@ from importlib import resources
 from typing import Any
 
 from michraz import _dates
+from michraz._enums import StrEnum
+from michraz._http import HttpMethod
 from michraz.errors import SourceFormatError
-from michraz.models import Tender
-from michraz.sources.base import BaseSource
+from michraz.models import RAW_EXTRA_KEY, Tender
+from michraz.sources.base import BaseSource, SourceName
 
 API_BASE = "https://apps.land.gov.il/MichrazimSite/api"
 SEARCH_URL = f"{API_BASE}/SearchApi/Search"
@@ -20,17 +22,68 @@ TENDER_URL = "https://apps.land.gov.il/MichrazimSite/#/michraz/{id}"
 PUBLISHER = "רשות מקרקעי ישראל"
 ATTRIBUTION = "Israel Land Authority (רשות מקרקעי ישראל), apps.land.gov.il"
 
+SETTLEMENTS_PACKAGE = "michraz.sources"
+SETTLEMENTS_FILE = "data/rmi_settlements.json"
+SETTLEMENTS_KEY = "settlements"
+TITLE_SEPARATOR = " - "
+
+
+class RmiExtra(StrEnum):
+    """Keys of ``Tender.extra`` for tenders from :class:`RmiSource`."""
+
+    SETTLEMENT_CODE = "settlement_code"
+    SETTLEMENT = "settlement"
+    NEIGHBORHOOD = "neighborhood"
+    REGION_CODE = "region_code"
+    TYPE_CODE = "type_code"
+    PURPOSE_CODE = "purpose_code"
+    STATUS_CODE = "status_code"
+    HOUSING_UNITS = "housing_units"
+    COMMITTEE_AT = "committee_at"
+    KHAL_YAAD_RASHI = "khal_yaad_rashi"
+    MEKUVAN = "mekuvan"
+    RAW = RAW_EXTRA_KEY
+
+
+class _Request(StrEnum):
+    """Keys of the search request body."""
+
+    ACTIVE_QUICK_SEARCH = "ActiveQuickSearch"
+    ACTIVE = "ActiveMichraz"
+    SETTLEMENT = "KodYeshuv"
+    NEIGHBORHOOD = "Shchuna"
+
+
+class _Field(StrEnum):
+    """Keys of one search result record."""
+
+    ID = "MichrazID"
+    NUMBER = "MichrazName"
+    REGION = "KodMerchav"
+    STATUS = "StatusMichraz"
+    PURPOSE = "KodYeudMichraz"
+    SETTLEMENT = "KodYeshuv"
+    TYPE = "KodSugMichraz"
+    MEKUVAN = "Mekuvan"
+    HOUSING_UNITS = "YechidotDiur"
+    NEIGHBORHOOD = "Shchuna"
+    PUBLISHED = "PirsumDate"
+    OPENS = "PtichaDate"
+    DEADLINE = "SgiraDate"
+    COMMITTEE = "VaadaDate"
+    KHAL_YAAD_RASHI = "KhalYaadRashi"
+
 
 @cache
 def settlements() -> dict[int, str]:
     """Returns the settlement code table (``KodYeshuv`` to Hebrew name) shipped with the package."""
-    text = resources.files("michraz.sources").joinpath("data/rmi_settlements.json").read_text(encoding="utf-8")
-    return {int(code): name for code, name in json.loads(text)["settlements"].items()}
+    text = resources.files(SETTLEMENTS_PACKAGE).joinpath(SETTLEMENTS_FILE).read_text(encoding="utf-8")
+    return {int(code): name for code, name in json.loads(text)[SETTLEMENTS_KEY].items()}
 
 
 def _title(settlement: str | None, neighborhood: str | None, number: str | None, source_id: str) -> str:
     parts = [part for part in (settlement, neighborhood) if part]
-    return " - ".join(parts) if parts else (number or source_id)
+    return TITLE_SEPARATOR.join(parts) if parts else (number or source_id)
 
 
 class RmiSource(BaseSource):
@@ -41,27 +94,28 @@ class RmiSource(BaseSource):
     the server was observed to ignore them (see ``docs/sources.md``).
 
     Region, tender type, purpose and status are exposed as the raw numeric codes the authority uses, under
-    ``extra``. No official label table could be verified, so none is shipped.
+    ``extra``. No official label table could be verified, so none is shipped. Use :class:`RmiExtra` for the
+    keys of ``extra``.
 
     Args:
         **settings: ``cache_dir``, ``cache_ttl`` and ``min_interval``, as for :class:`BaseSource`.
     """
 
-    name = "rmi"
+    name = SourceName.RMI.value
     description = "Israel Land Authority land tenders (apps.land.gov.il)"
     attribution = ATTRIBUTION
 
     @staticmethod
     def _body(active_only: bool, settlement_code: int | None, neighborhood: str | None) -> dict[str, Any]:
-        body: dict[str, Any] = {"ActiveQuickSearch": False, "ActiveMichraz": active_only}
+        body: dict[str, Any] = {_Request.ACTIVE_QUICK_SEARCH: False, _Request.ACTIVE: active_only}
         if settlement_code is not None:
-            body["KodYeshuv"] = settlement_code
+            body[_Request.SETTLEMENT] = settlement_code
         if neighborhood:
-            body["Shchuna"] = neighborhood
+            body[_Request.NEIGHBORHOOD] = neighborhood
         return body
 
     def last_fetched(self) -> datetime | None:
-        return self._client().cached_at("POST", SEARCH_URL, payload=self._body(True, None, None))
+        return self._client().cached_at(HttpMethod.POST, SEARCH_URL, payload=self._body(True, None, None))
 
     def fetch(self) -> Iterator[Tender]:
         """Yields all currently open tenders. Same as ``iter(search())``."""
@@ -110,11 +164,11 @@ class RmiSource(BaseSource):
         if not isinstance(payload, list):
             raise SourceFormatError(self.name, f"expected a JSON list, got: {str(payload)[:200]!r}")
         wanted = {
-            "MichrazName": tender_number,
-            "KodMerchav": region,
-            "KodSugMichraz": tender_type,
-            "KodYeudMichraz": purpose,
-            "StatusMichraz": status,
+            _Field.NUMBER: tender_number,
+            _Field.REGION: region,
+            _Field.TYPE: tender_type,
+            _Field.PURPOSE: purpose,
+            _Field.STATUS: status,
         }
         tenders = []
         for record in payload:
@@ -123,7 +177,7 @@ class RmiSource(BaseSource):
                     continue
                 tenders.append(self.parse(record))
             except (KeyError, TypeError, ValueError, AttributeError) as exc:
-                self._skip(record.get("MichrazID") if isinstance(record, dict) else None, exc)
+                self._skip(record.get(_Field.ID) if isinstance(record, dict) else None, exc)
         return tenders
 
     def parse(self, record: dict[str, Any]) -> Tender:
@@ -133,34 +187,34 @@ class RmiSource(BaseSource):
             KeyError: If ``MichrazID`` is missing.
             ValueError: If a date is not ISO 8601.
         """
-        source_id = str(record["MichrazID"])
-        number = (record.get("MichrazName") or "").strip() or None
-        code = record.get("KodYeshuv")
+        source_id = str(record[_Field.ID])
+        number = (record.get(_Field.NUMBER) or "").strip() or None
+        code = record.get(_Field.SETTLEMENT)
         settlement = settlements().get(code) if isinstance(code, int) else None
-        neighborhood = (record.get("Shchuna") or "").strip() or None
+        neighborhood = (record.get(_Field.NEIGHBORHOOD) or "").strip() or None
         return Tender(
             source=self.name,
             source_id=source_id,
             title=_title(settlement, neighborhood, number, source_id),
             number=number,
             publisher=PUBLISHER,
-            published_at=_dates.parse_iso(record.get("PirsumDate")),
-            opens_at=_dates.parse_iso(record.get("PtichaDate")),
-            deadline=_dates.parse_iso(record.get("SgiraDate")),
+            published_at=_dates.parse_iso(record.get(_Field.PUBLISHED)),
+            opens_at=_dates.parse_iso(record.get(_Field.OPENS)),
+            deadline=_dates.parse_iso(record.get(_Field.DEADLINE)),
             url=TENDER_URL.format(id=source_id),
             attribution=self.attribution,
             extra={
-                "settlement_code": code,
-                "settlement": settlement,
-                "neighborhood": neighborhood,
-                "region_code": record.get("KodMerchav"),
-                "type_code": record.get("KodSugMichraz"),
-                "purpose_code": record.get("KodYeudMichraz"),
-                "status_code": record.get("StatusMichraz"),
-                "housing_units": record.get("YechidotDiur"),
-                "khal_yaad_rashi": record.get("KhalYaadRashi"),
-                "committee_at": _dates.parse_iso(record.get("VaadaDate")),
-                "mekuvan": record.get("Mekuvan"),
-                "raw": record,
+                RmiExtra.SETTLEMENT_CODE: code,
+                RmiExtra.SETTLEMENT: settlement,
+                RmiExtra.NEIGHBORHOOD: neighborhood,
+                RmiExtra.REGION_CODE: record.get(_Field.REGION),
+                RmiExtra.TYPE_CODE: record.get(_Field.TYPE),
+                RmiExtra.PURPOSE_CODE: record.get(_Field.PURPOSE),
+                RmiExtra.STATUS_CODE: record.get(_Field.STATUS),
+                RmiExtra.HOUSING_UNITS: record.get(_Field.HOUSING_UNITS),
+                RmiExtra.COMMITTEE_AT: _dates.parse_iso(record.get(_Field.COMMITTEE)),
+                RmiExtra.KHAL_YAAD_RASHI: record.get(_Field.KHAL_YAAD_RASHI),
+                RmiExtra.MEKUVAN: record.get(_Field.MEKUVAN),
+                RmiExtra.RAW: record,
             },
         )

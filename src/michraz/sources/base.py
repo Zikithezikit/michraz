@@ -9,10 +9,18 @@ from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Protocol, runtime_checkable
 
+from michraz._enums import StrEnum
 from michraz._http import DEFAULT_CACHE_DIR, DEFAULT_CACHE_TTL, DEFAULT_MIN_INTERVAL, HttpClient
 from michraz.models import Tender
 
 logger = logging.getLogger(__name__)
+
+
+class SourceName(StrEnum):
+    """Names of the built-in sources, as they appear in ``Tender.source`` and ``--source``."""
+
+    RMI = "rmi"
+    BEERSHEVA = "beersheva"
 
 
 @runtime_checkable

@@ -10,9 +10,11 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from michraz import _dates
+from michraz._enums import StrEnum
+from michraz._http import HttpMethod
 from michraz.errors import SourceFormatError
-from michraz.models import Document, Tender
-from michraz.sources.base import BaseSource
+from michraz.models import RAW_EXTRA_KEY, Document, Tender
+from michraz.sources.base import BaseSource, SourceName
 
 API_URL = "https://data.gov.il/api/3/action/datastore_search"
 RESOURCE_ID = "6a281768-6327-420b-a1c5-fb84af1fa8ae"
@@ -20,14 +22,43 @@ PUBLISHER = "עיריית באר שבע"
 ATTRIBUTION = "Beer Sheva Municipality (עיריית באר שבע), via data.gov.il, license: Other (Open)"
 DEFAULT_PAGE_SIZE = 1000
 
-_TITLE = "שם מכרז"
-_NUMBER = "מספר מכרז"
-_DEADLINE = "תאריך אחרון להגשה"
-_UPDATED = "תאריך עדכון"
-_WINNER = "זוכה במכרז"
-_FILES = "קבצים"
-_PAYMENT = "תשלום מקוון"
-_URL = "URL"
+
+class _Column(StrEnum):
+    """Column names of the datastore, as the municipality publishes them."""
+
+    TITLE = "שם מכרז"
+    NUMBER = "מספר מכרז"
+    DEADLINE = "תאריך אחרון להגשה"
+    UPDATED = "תאריך עדכון"
+    WINNER = "זוכה במכרז"
+    FILES = "קבצים"
+    PAYMENT = "תשלום מקוון"
+    URL = "URL"
+    ROW_ID = "_id"
+
+
+class _Ckan(StrEnum):
+    """Keys of the CKAN datastore API."""
+
+    SUCCESS = "success"
+    RESULT = "result"
+    RECORDS = "records"
+    TOTAL = "total"
+    RESOURCE_ID = "resource_id"
+    LIMIT = "limit"
+    OFFSET = "offset"
+
+
+class BeerShevaExtra(StrEnum):
+    """Keys of ``Tender.extra`` for tenders from :class:`BeerShevaSource`."""
+
+    PAYMENT_URL = "payment_url"
+    RAW = RAW_EXTRA_KEY
+
+
+ITEM_ID_PARAMETER = "ID"
+LINK_TAG = "a"
+LINK_HREF = "href"
 
 
 class _LinkParser(HTMLParser):
@@ -40,8 +71,8 @@ class _LinkParser(HTMLParser):
         self._text: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag == "a":
-            self._href = dict(attrs).get("href") or ""
+        if tag == LINK_TAG:
+            self._href = dict(attrs).get(LINK_HREF) or ""
             self._text = []
 
     def handle_data(self, data: str) -> None:
@@ -49,7 +80,7 @@ class _LinkParser(HTMLParser):
             self._text.append(data)
 
     def handle_endtag(self, tag: str) -> None:
-        if tag == "a" and self._href is not None:
+        if tag == LINK_TAG and self._href is not None:
             self.links.append((" ".join("".join(self._text).split()), self._href.strip()))
             self._href = None
 
@@ -76,7 +107,7 @@ def _item_id(url: str | None) -> str | None:
     """The municipality's list-item id from ``...DispForm.aspx?ID=896``."""
     if not url:
         return None
-    ids = parse_qs(urlparse(url).query).get("ID")
+    ids = parse_qs(urlparse(url).query).get(ITEM_ID_PARAMETER)
     return ids[0] if ids else None
 
 
@@ -91,7 +122,7 @@ class BeerShevaSource(BaseSource):
         **settings: ``cache_dir``, ``cache_ttl`` and ``min_interval``, as for :class:`BaseSource`.
     """
 
-    name = "beersheva"
+    name = SourceName.BEERSHEVA.value
     description = "Beer Sheva municipal tenders (data.gov.il, weekly)"
     attribution = ATTRIBUTION
 
@@ -102,10 +133,10 @@ class BeerShevaSource(BaseSource):
         self.page_size = page_size
 
     def _params(self, offset: int) -> dict[str, Any]:
-        return {"resource_id": RESOURCE_ID, "limit": self.page_size, "offset": offset}
+        return {_Ckan.RESOURCE_ID: RESOURCE_ID, _Ckan.LIMIT: self.page_size, _Ckan.OFFSET: offset}
 
     def last_fetched(self) -> datetime | None:
-        return self._client().cached_at("GET", API_URL, self._params(0))
+        return self._client().cached_at(HttpMethod.GET, API_URL, self._params(0))
 
     def fetch(self) -> Iterator[Tender]:
         """Yields every tender in the dataset.
@@ -124,17 +155,17 @@ class BeerShevaSource(BaseSource):
                 try:
                     yield self.parse(record)
                 except (KeyError, TypeError, ValueError, AttributeError) as exc:
-                    self._skip(record.get("_id") if isinstance(record, dict) else None, exc)
+                    self._skip(record.get(_Column.ROW_ID) if isinstance(record, dict) else None, exc)
             offset += len(records)
             if not records or offset >= total:
                 return
 
     def _unwrap(self, payload: Any) -> tuple[list[Any], int]:
         try:
-            if payload["success"] is not True:
+            if payload[_Ckan.SUCCESS] is not True:
                 raise ValueError("success is not true")
-            result = payload["result"]
-            records, total = result["records"], result["total"]
+            result = payload[_Ckan.RESULT]
+            records, total = result[_Ckan.RECORDS], result[_Ckan.TOTAL]
             if not isinstance(records, list) or not isinstance(total, int):
                 raise ValueError("records or total has the wrong type")
         except (KeyError, TypeError, ValueError) as exc:
@@ -149,12 +180,12 @@ class BeerShevaSource(BaseSource):
             KeyError: If a column is missing.
             ValueError: If a date does not match ``dd/mm/yyyy HH:MM:SS`` or the row has no identifier.
         """
-        url = _text(record[_URL])
-        number = _text(record[_NUMBER])
+        url = _text(record[_Column.URL])
+        number = _text(record[_Column.NUMBER])
         source_id = _item_id(url) or number
         if source_id is None:
             raise ValueError("row has neither a list-item id nor a tender number")
-        title = _text(record[_TITLE])
+        title = _text(record[_Column.TITLE])
         if title is None:
             raise ValueError("row has no title")
         return Tender(
@@ -163,11 +194,11 @@ class BeerShevaSource(BaseSource):
             title=title,
             number=number,
             publisher=PUBLISHER,
-            deadline=_dates.parse_local(record[_DEADLINE]),
-            updated_at=_dates.parse_local(record[_UPDATED]),
-            winner=_text(record[_WINNER]),
+            deadline=_dates.parse_local(record[_Column.DEADLINE]),
+            updated_at=_dates.parse_local(record[_Column.UPDATED]),
+            winner=_text(record[_Column.WINNER]),
             url=url,
-            documents=parse_documents(record[_FILES]),
+            documents=parse_documents(record[_Column.FILES]),
             attribution=self.attribution,
-            extra={"payment_url": _text(record.get(_PAYMENT)), "raw": record},
+            extra={BeerShevaExtra.PAYMENT_URL: _text(record.get(_Column.PAYMENT)), BeerShevaExtra.RAW: record},
         )

@@ -12,15 +12,18 @@ from michraz.client import Michraz
 from michraz.errors import MichrazError, SourceFormatError, SourceUnavailableError
 from michraz.export import to_csv, to_dataframe, to_dicts
 from michraz.models import Document, Tender
-from michraz.sources import BeerShevaSource, RmiSource, Source
+from michraz.sources import BeerShevaExtra, BeerShevaSource, RmiExtra, RmiSource, Source, SourceName
 
 __all__ = [
+    "BeerShevaExtra",
     "BeerShevaSource",
     "Document",
     "Michraz",
     "MichrazError",
+    "RmiExtra",
     "RmiSource",
     "Source",
+    "SourceName",
     "SourceFormatError",
     "SourceUnavailableError",
     "Tender",

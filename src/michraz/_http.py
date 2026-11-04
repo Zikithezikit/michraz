@@ -15,18 +15,30 @@ import time
 from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
+from http import HTTPStatus
 from pathlib import Path
 from types import TracebackType
 from typing import Any
 
 import httpx
 
+from michraz._enums import StrEnum
 from michraz._version import __version__
 from michraz.errors import SourceFormatError, SourceUnavailableError
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = f"michraz/{__version__} (+https://github.com/Zikithezikit/michraz)"
+PROJECT_URL = "https://github.com/Zikithezikit/michraz"
+USER_AGENT = f"michraz/{__version__} (+{PROJECT_URL})"
+HEADER_USER_AGENT = "User-Agent"
+HEADER_ACCEPT = "Accept"
+HEADER_RETRY_AFTER = "Retry-After"
+JSON_MEDIA_TYPE = "application/json"
+
+_CACHE_FETCHED_AT = "fetched_at"
+_CACHE_DATA = "data"
+CACHE_FILE_SUFFIX = ".json"
+CACHE_TMP_SUFFIX = ".tmp"
 DEFAULT_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "michraz"
 DEFAULT_CACHE_TTL = timedelta(hours=1)
 DEFAULT_MIN_INTERVAL = 1.0
@@ -36,6 +48,18 @@ BACKOFF_BASE = 1.0
 MAX_RETRY_AFTER = 60.0
 TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 SAMPLE_CHARS = 200
+
+
+class HttpMethod(StrEnum):
+    """The HTTP methods michraz uses. Both only read data."""
+
+    GET = "GET"
+    POST = "POST"
+
+
+# 429 and every 5xx are worth retrying; any other error status is final.
+_REDIRECT_STATUS_START = HTTPStatus.MULTIPLE_CHOICES
+_SERVER_ERROR_START = HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 def _truncate(text: str) -> str:
@@ -68,13 +92,13 @@ class _DiskCache:
         self._wall_clock = wall_clock
 
     def _path(self, key: str) -> Path:
-        return self.directory / f"{key}.json"
+        return self.directory / f"{key}{CACHE_FILE_SUFFIX}"
 
     def read(self, key: str) -> tuple[float, Any] | None:
         """Returns ``(fetched_at, data)`` regardless of age, or None if absent or unreadable."""
         try:
             entry = json.loads(self._path(key).read_text(encoding="utf-8"))
-            return float(entry["fetched_at"]), entry["data"]
+            return float(entry[_CACHE_FETCHED_AT]), entry[_CACHE_DATA]
         except (OSError, ValueError, KeyError, TypeError):
             return None
 
@@ -85,11 +109,11 @@ class _DiskCache:
         return entry
 
     def write(self, key: str, data: Any) -> None:
-        payload = json.dumps({"fetched_at": self._wall_clock(), "data": data}, ensure_ascii=False)
+        payload = json.dumps({_CACHE_FETCHED_AT: self._wall_clock(), _CACHE_DATA: data}, ensure_ascii=False)
         try:
             self.directory.mkdir(parents=True, exist_ok=True)
             with tempfile.NamedTemporaryFile(
-                "w", encoding="utf-8", dir=self.directory, suffix=".tmp", delete=False
+                "w", encoding="utf-8", dir=self.directory, suffix=CACHE_TMP_SUFFIX, delete=False
             ) as handle:
                 handle.write(payload)
             os.replace(handle.name, self._path(key))
@@ -97,7 +121,7 @@ class _DiskCache:
             logger.debug("could not write cache entry: %s", exc)
 
 
-def _request_key(method: str, url: str, payload: Any) -> str:
+def _request_key(method: HttpMethod, url: str, payload: Any) -> str:
     body = json.dumps(payload, sort_keys=True, ensure_ascii=False) if payload is not None else ""
     return hashlib.sha256(f"{method}\n{url}\n{body}".encode()).hexdigest()
 
@@ -137,7 +161,7 @@ class HttpClient:
         self._wall_clock = wall_clock
         self._owns_client = client is None
         self._client = client or httpx.Client(
-            headers={"User-Agent": USER_AGENT, "Accept": "application/json"}, timeout=TIMEOUT
+            headers={HEADER_USER_AGENT: USER_AGENT, HEADER_ACCEPT: JSON_MEDIA_TYPE}, timeout=TIMEOUT
         )
         self._cache = _DiskCache(Path(cache_dir).expanduser(), cache_ttl, wall_clock) if cache_dir else None
         self._last_request: dict[str, float] = {}
@@ -167,7 +191,7 @@ class HttpClient:
             SourceUnavailableError: If the host cannot be reached or answers with an error status.
             SourceFormatError: If the body is not JSON.
         """
-        return self._json(source, "GET", self._full_url(url, params), None)
+        return self._json(source, HttpMethod.GET, self._full_url(url, params), None)
 
     def post_json(self, source: str, url: str, payload: Any) -> Any:
         """Sends ``payload`` as JSON with POST and returns the decoded JSON body.
@@ -176,10 +200,10 @@ class HttpClient:
             SourceUnavailableError: If the host cannot be reached or answers with an error status.
             SourceFormatError: If the body is not JSON.
         """
-        return self._json(source, "POST", url, payload)
+        return self._json(source, HttpMethod.POST, url, payload)
 
     def cached_at(
-        self, method: str, url: str, params: Mapping[str, Any] | None = None, payload: Any = None
+        self, method: HttpMethod, url: str, params: Mapping[str, Any] | None = None, payload: Any = None
     ) -> datetime | None:
         """Returns when a request was last fetched into the cache, even if the entry has expired."""
         if self._cache is None:
@@ -191,7 +215,7 @@ class HttpClient:
     def _full_url(url: str, params: Mapping[str, Any] | None) -> str:
         return str(httpx.URL(url, params=params)) if params else url
 
-    def _json(self, source: str, method: str, url: str, payload: Any) -> Any:
+    def _json(self, source: str, method: HttpMethod, url: str, payload: Any) -> Any:
         key = _request_key(method, url, payload)
         if self._cache and (hit := self._cache.fresh(key)) is not None:
             logger.debug("cache hit for %s", url)
@@ -213,25 +237,25 @@ class HttpClient:
                 self._sleep(wait)
         self._last_request[host] = self._clock()
 
-    def _send(self, source: str, method: str, url: str, payload: Any) -> httpx.Response:
+    def _send(self, source: str, method: HttpMethod, url: str, payload: Any) -> httpx.Response:
         host = httpx.URL(url).host
         for attempt in range(MAX_RETRIES + 1):
             self._throttle(host)
             try:
-                response = self._client.request(method, url, json=payload)
+                response = self._client.request(method.value, url, json=payload)
             except httpx.HTTPError as exc:
                 raise SourceUnavailableError(source, f"request to {host} failed: {exc}") from exc
             status = response.status_code
-            retryable = status == 429 or status >= 500
+            retryable = status == HTTPStatus.TOO_MANY_REQUESTS or status >= _SERVER_ERROR_START
             if not retryable or attempt == MAX_RETRIES:
                 break
-            delay = _retry_after(response.headers.get("Retry-After"), self._wall_clock)
+            delay = _retry_after(response.headers.get(HEADER_RETRY_AFTER), self._wall_clock)
             if delay is None:
                 delay = BACKOFF_BASE * 2**attempt
             if delay > MAX_RETRY_AFTER:
                 raise SourceUnavailableError(source, f"{host} asked to wait {delay:.0f}s (HTTP {status}); giving up")
             logger.warning("%s answered HTTP %d, retrying in %.1fs", host, status, delay)
             self._sleep(delay)
-        if status >= 300:
+        if status >= _REDIRECT_STATUS_START:
             raise SourceUnavailableError(source, f"HTTP {status} from {url}")
         return response

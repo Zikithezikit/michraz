@@ -12,7 +12,10 @@ public tenders (RMI land tenders, Beer Sheva municipal tenders). MIT licensed.
 4. **No new runtime dependencies** without maintainer approval (runtime is `httpx` only).
 5. **Keep the public API small.** Anything not exported from `michraz/__init__.py` is private.
 6. **Don't claim what you didn't verify.** In PR descriptions, separate "verified (how)" from "believed".
-7. Plain ASCII in PR text and commit messages. Check with `grep -nP '[^\x00-\x7F]' <file>` before posting.
+7. **No magic values.** Anything with a fixed meaning is an `Enum` or a named constant: source names, upstream
+   field and column names, `extra` keys, HTTP methods and statuses, CLI commands, exit codes. Use `michraz._enums.StrEnum`
+   for strings so members still equal the plain value. A bare `"rmi"` or `429` in code needs a reason.
+8. Plain ASCII in PR text and commit messages. Check with `grep -nP '[^\x00-\x7F]' <file>` before posting.
 
 ## Workflow
 

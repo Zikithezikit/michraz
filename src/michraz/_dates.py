@@ -6,9 +6,13 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-JERUSALEM = ZoneInfo("Asia/Jerusalem")
+TIMEZONE_NAME = "Asia/Jerusalem"
+JERUSALEM = ZoneInfo(TIMEZONE_NAME)
 
 LOCAL_FORMAT = "%d/%m/%Y %H:%M:%S"
+
+UTC_DESIGNATOR = "Z"
+UTC_OFFSET = "+00:00"
 
 _FRACTION = re.compile(r"\.(\d+)")
 MICROSECOND_DIGITS = 6
@@ -34,7 +38,7 @@ def parse_iso(value: str | None) -> datetime | None:
     """
     if value is None or not value.strip():
         return None
-    text = _FRACTION.sub(_pad_fraction, value.strip().replace("Z", "+00:00"))
+    text = _FRACTION.sub(_pad_fraction, value.strip().replace(UTC_DESIGNATOR, UTC_OFFSET))
     parsed = datetime.fromisoformat(text)
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=JERUSALEM)

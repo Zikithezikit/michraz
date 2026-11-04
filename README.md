@@ -71,11 +71,11 @@ code is 1 if a service could not be reached.
 Ask a single source, with its own filters:
 
 ```python
-from michraz import RmiSource
+from michraz import RmiExtra, RmiSource
 
 with RmiSource() as rmi:
     for tender in rmi.search(settlement_code=3750):
-        print(tender.number, tender.title, tender.extra["housing_units"])
+        print(tender.number, tender.title, tender.extra[RmiExtra.HOUSING_UNITS])
 ```
 
 Tenders closing in a window (plain dates mean midnight in Israel):
@@ -95,6 +95,10 @@ to_csv(tenders, "tenders.csv")
 to_dicts(tenders)  # plain dictionaries, ready for json.dumps
 to_dataframe(tenders)  # needs michraz[pandas]
 ```
+
+Source names and the keys of `tender.extra` are enums (`SourceName`, `RmiExtra`, `BeerShevaExtra`). They compare
+equal to the plain strings, so `source="rmi"` and `tender.extra["housing_units"]` work too, but the enums give you
+autocomplete and a typo fails loudly.
 
 A tender is open when it has no winner and its deadline is still ahead. A deadline equal to the current moment counts
 as closed, and so does a tender with no deadline at all.
@@ -151,7 +155,7 @@ it under the table. How each source was checked, and what is still unknown, is w
 This is a first release, so some things are rough.
 
 The Israel Land Authority publishes region, tender type, purpose and status as numbers. The only public label table
-I found did not match the live data, so michraz gives you the raw codes in `tender.extra` instead of guessing.
+I found did not match the live data, so michraz gives you the raw codes in `tender.extra` (`RmiExtra.REGION_CODE` and friends) instead of guessing.
 Settlement names are included and checked against the authority's own list.
 
 Of the filters the RMI search accepts, only settlement and neighborhood actually work on the server. michraz

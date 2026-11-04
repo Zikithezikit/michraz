@@ -3,20 +3,38 @@
 from __future__ import annotations
 
 import csv
-from collections.abc import Callable, Iterable
+import dataclasses
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from os import PathLike
 from typing import TYPE_CHECKING, Any, TextIO
 
-from michraz.models import Tender
+from michraz._enums import StrEnum
+from michraz.models import RAW_EXTRA_KEY, Tender
 
 if TYPE_CHECKING:
     import pandas
 
-CSV_COLUMNS = ("source", "source_id", "number", "title", "publisher", "deadline", "winner", "url", "attribution")
+
+class CsvColumn(StrEnum):
+    """Columns of the CSV export, in order. Each value is the name of the ``Tender`` attribute it comes from."""
+
+    SOURCE = "source"
+    SOURCE_ID = "source_id"
+    NUMBER = "number"
+    TITLE = "title"
+    PUBLISHER = "publisher"
+    DEADLINE = "deadline"
+    WINNER = "winner"
+    URL = "url"
+    ATTRIBUTION = "attribution"
+
+
+CSV_COLUMNS = tuple(column.value for column in CsvColumn)
 
 # Spreadsheet programs run cells that start with one of these as formulas.
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+_FORMULA_ESCAPE = "'"
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -24,26 +42,22 @@ def _iso(value: datetime | None) -> str | None:
 
 
 def _record(tender: Tender, *, iso: bool, include_raw: bool) -> dict[str, Any]:
-    convert: Callable[[Any], Any] = _iso if iso else (lambda v: v)
-    extra = {
-        k: convert(v) if isinstance(v, datetime) else v for k, v in tender.extra.items() if include_raw or k != "raw"
-    }
-    return {
-        "source": tender.source,
-        "source_id": tender.source_id,
-        "number": tender.number,
-        "title": tender.title,
-        "publisher": tender.publisher,
-        "published_at": convert(tender.published_at),
-        "opens_at": convert(tender.opens_at),
-        "deadline": convert(tender.deadline),
-        "updated_at": convert(tender.updated_at),
-        "winner": tender.winner,
-        "url": tender.url,
-        "documents": [{"title": d.title, "url": d.url} for d in tender.documents],
-        "attribution": tender.attribution,
-        "extra": extra,
-    }
+    """Maps every field of the dataclass to a plain value, so a new field needs no change here."""
+    record: dict[str, Any] = {}
+    for field in dataclasses.fields(tender):
+        value = getattr(tender, field.name)
+        if isinstance(value, datetime):
+            value = _iso(value) if iso else value
+        elif isinstance(value, tuple):
+            value = [dataclasses.asdict(item) for item in value]
+        elif isinstance(value, Mapping):
+            value = {
+                str(key): (_iso(item) if iso and isinstance(item, datetime) else item)
+                for key, item in value.items()
+                if include_raw or key != RAW_EXTRA_KEY
+            }
+        record[field.name] = value
+    return record
 
 
 def to_dicts(tenders: Iterable[Tender], *, include_raw: bool = False) -> list[dict[str, Any]]:
@@ -60,9 +74,10 @@ def to_dicts(tenders: Iterable[Tender], *, include_raw: bool = False) -> list[di
     return [_record(t, iso=True, include_raw=include_raw) for t in tenders]
 
 
-def _safe_cell(value: str | None) -> str:
-    text = value or ""
-    return "'" + text if text.startswith(_FORMULA_PREFIXES) else text
+def _safe_cell(value: object) -> str:
+    text = _iso(value) if isinstance(value, datetime) else value
+    text = "" if text is None else str(text)
+    return _FORMULA_ESCAPE + text if text.startswith(_FORMULA_PREFIXES) else text
 
 
 def to_csv(tenders: Iterable[Tender], path_or_file: str | PathLike[str] | TextIO) -> int:
@@ -90,23 +105,8 @@ def _write_csv(tenders: Iterable[Tender], handle: TextIO) -> int:
     writer = csv.writer(handle)
     writer.writerow(CSV_COLUMNS)
     count = 0
-    for t in tenders:
-        writer.writerow(
-            [
-                _safe_cell(cell)
-                for cell in (
-                    t.source,
-                    t.source_id,
-                    t.number,
-                    t.title,
-                    t.publisher,
-                    _iso(t.deadline),
-                    t.winner,
-                    t.url,
-                    t.attribution,
-                )
-            ]
-        )
+    for tender in tenders:
+        writer.writerow([_safe_cell(getattr(tender, column.value)) for column in CsvColumn])
         count += 1
     return count
 
