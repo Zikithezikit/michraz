@@ -1,0 +1,20 @@
+name: Live smoke
+
+# Manual only, never a required check. Fetches each real service once and verifies the response still has the
+# shape the parsers expect. If it fails, a source changed: re-record the fixture in a separate commit.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev]'
+      - run: pytest -m live -v
