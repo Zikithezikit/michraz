@@ -84,10 +84,10 @@ Checked 2026-11-04 from the development machine with the michraz User-Agent.
 | `apps.land.gov.il` | HTTP 404, no robots file |
 | `data.gov.il` | `User-agent: *`, `Allow: /`, **`Disallow: /api/`** |
 
-The `data.gov.il` file disallows `/api/`, and the Beer Sheva source calls
-`/api/3/action/datastore_search`. data.gov.il documents that API for programmatic use, and michraz makes one
-request per search, cached for an hour, but the file as written does not allow it for automated clients. This
-needs a decision from the maintainer before a release. Terms of use pages were not reviewed.
+The `data.gov.il` file disallows `/api/` for all agents, and the Beer Sheva source calls
+`/api/3/action/datastore_search`. That is the portal's documented open-data API, michraz makes one cached request per
+search, and the maintainer reviewed this on 2026-11-04 and decided to keep the source enabled. Terms of use pages
+were not reviewed.
 
 ## Known dead ends
 

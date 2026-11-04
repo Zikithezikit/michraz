@@ -1,0 +1,39 @@
+digraph overview {
+  rankdir=LR; bgcolor="white"; pad=0.35; nodesep=0.3; ranksep=0.7; newrank=true; splines=true;
+  node  [fontname="Inter", fontsize=12, shape=box, style="rounded,filled", fillcolor="white",
+         color="#cbd5e1", fontcolor="#1e293b", margin="0.22,0.13", penwidth=1.2];
+  edge  [fontname="Inter", fontsize=10, color="#94a3b8", fontcolor="#64748b", arrowsize=0.7, penwidth=1.2];
+
+  you [label=<<b>You</b><br/><font point-size="10" color="#64748b">Python or terminal</font>>, fillcolor="#f1f5f9"];
+
+  subgraph cluster_core {
+    label=<<b>michraz</b>>; labeljust=l; fontname="Inter"; fontsize=12; fontcolor="#1d4ed8";
+    style="rounded,filled"; fillcolor="#eff6ff"; color="#bfdbfe"; margin=16;
+    api  [label=<<b>Michraz.search()</b><br/><font point-size="10" color="#64748b">filter, sort, collect errors</font>>, color="#93c5fd"];
+    http [label=<<b>Polite HTTP client</b><br/><font point-size="10" color="#64748b">rate limit, disk cache, retries</font>>, color="#93c5fd"];
+    tenders [label=<<b>list of Tender</b><br/><font point-size="10" color="#64748b">one model for every source</font>>, color="#93c5fd"];
+  }
+
+  subgraph cluster_feeds {
+    label=<<b>Public feeds</b>>; labeljust=l; fontname="Inter"; fontsize=12; fontcolor="#047857";
+    style="rounded,filled"; fillcolor="#ecfdf5"; color="#a7f3d0"; margin=16;
+    rmi [label=<<b>Israel Land Authority</b><br/><font point-size="10" color="#64748b">land tenders, live</font>>, color="#6ee7b7"];
+    bs  [label=<<b>Beer Sheva</b><br/><font point-size="10" color="#64748b">municipal tenders, weekly</font>>, color="#6ee7b7"];
+    own [label=<<b>Your source</b><br/><font point-size="10" color="#64748b">one small class</font>>, color="#6ee7b7", style="rounded,filled,dashed"];
+  }
+
+  subgraph cluster_out {
+    label=<<b>Output</b>>; labeljust=l; fontname="Inter"; fontsize=12; fontcolor="#b45309";
+    style="rounded,filled"; fillcolor="#fffbeb"; color="#fde68a"; margin=16;
+    table [label="Table in the terminal", color="#fcd34d"];
+    csv   [label=<CSV <font point-size="10" color="#64748b">(opens in Excel)</font>>, color="#fcd34d"];
+    json  [label="JSON", color="#fcd34d"];
+    df    [label="pandas DataFrame", color="#fcd34d"];
+  }
+
+  you -> api;
+  api -> http [label="  asks"];
+  http -> rmi; http -> bs; http -> own [style=dashed];
+  api -> tenders [label="  returns"];
+  tenders -> table; tenders -> csv; tenders -> json; tenders -> df;
+}

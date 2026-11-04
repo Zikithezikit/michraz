@@ -1,0 +1,42 @@
+digraph request_flow {
+  rankdir=TB; bgcolor="white"; pad=0.35; nodesep=0.45; ranksep=0.42;
+  node [fontname="Inter", fontsize=11, shape=box, style="rounded,filled", fillcolor="white", color="#cbd5e1",
+        fontcolor="#1e293b", margin="0.2,0.11", penwidth=1.2];
+  edge [fontname="Inter", fontsize=10, color="#94a3b8", fontcolor="#64748b", arrowsize=0.7, penwidth=1.2];
+
+  start [shape=circle, label="", width=0.2, style=filled, fillcolor="#1e293b", color="#1e293b"];
+  search [label=<<b>Michraz.search()</b><br/><font point-size="10" color="#64748b">for each source</font>>, fillcolor="#eff6ff", color="#93c5fd"];
+  cached [label="Fresh response\nin the cache?", shape=diamond, style="filled", fillcolor="#f8fafc", margin="0.05,0.05"];
+  hit    [label="Use the cached JSON"];
+  wait   [label=<Wait for the<br/>per-host rate limit<br/><font point-size="10" color="#64748b">at least 1 s apart</font>>];
+  send   [label=<Send the request<br/><font point-size="10" color="#64748b">honest User-Agent</font>>];
+  status [label="HTTP status?", shape=diamond, style="filled", fillcolor="#f8fafc", margin="0.05,0.05"];
+  retry  [label=<Back off and retry<br/><font point-size="10" color="#64748b">honor Retry-After, at most 2 retries</font>>, fillcolor="#fffbeb", color="#fcd34d"];
+  fail   [label=<Raise <b>SourceUnavailableError</b>>, fillcolor="#fef2f2", color="#fca5a5"];
+  store  [label="Store the JSON in the cache"];
+  parse  [label="Parse each record", fillcolor="#ecfdf5", color="#6ee7b7"];
+  valid  [label="Record valid?", shape=diamond, style="filled", fillcolor="#f8fafc", margin="0.05,0.05"];
+  skip   [label=<Skip it, log a warning,<br/>add to <b>last_errors</b>>, fillcolor="#fffbeb", color="#fcd34d"];
+  tender [label=<Build a <b>Tender</b>>, fillcolor="#ecfdf5", color="#6ee7b7"];
+  filter [label="Filter and sort by deadline", fillcolor="#eff6ff", color="#93c5fd"];
+  done   [label=<Return <b>list[Tender]</b>>, fillcolor="#eff6ff", color="#93c5fd"];
+  end    [shape=doublecircle, label="", width=0.2, style=filled, fillcolor="#1e293b", color="#1e293b"];
+
+  start -> search -> cached;
+  cached -> hit [label="  yes"];
+  cached -> wait [label="  no"];
+  wait -> send -> status;
+  status -> store [label="  2xx"];
+  status -> retry [label="  429 or 5xx"];
+  status -> fail  [label="  other 4xx,\n  redirect"];
+  retry -> wait;
+  hit -> parse;
+  store -> parse;
+  parse -> valid;
+  valid -> tender [label="  yes"];
+  valid -> skip [label="  no"];
+  skip -> parse [style=dashed, label="  next record"];
+  tender -> filter -> done -> end;
+  { rank=same; cached; hit; }
+  { rank=same; status; retry; }
+}

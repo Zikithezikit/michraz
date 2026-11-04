@@ -2,7 +2,7 @@ VENV ?= .venv
 BIN  := $(VENV)/bin
 
 .DEFAULT_GOAL := help
-.PHONY: help venv test cov lint format typecheck check build clean
+.PHONY: help venv test cov lint format typecheck check build clean diagrams
 
 help:  ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -38,3 +38,6 @@ build:  ## Build sdist + wheel and validate them
 clean:  ## Remove build and cache files
 	rm -rf dist build *.egg-info src/*.egg-info .pytest_cache .mypy_cache .ruff_cache .coverage
 	find . -name __pycache__ -not -path './.venv/*' -prune -exec rm -rf {} +
+
+diagrams:  ## Re-render docs/images from docs/diagrams (needs Graphviz and the Inter font)
+	for f in docs/diagrams/*.dot; do dot -Tpng -Gdpi=200 $$f -o docs/images/$$(basename $$f .dot).png; done
