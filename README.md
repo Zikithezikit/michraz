@@ -92,8 +92,8 @@ Save the results:
 from michraz import to_csv, to_dicts, to_dataframe
 
 to_csv(tenders, "tenders.csv")
-to_dicts(tenders)        # plain dictionaries, ready for json.dumps
-to_dataframe(tenders)    # needs michraz[pandas]
+to_dicts(tenders)  # plain dictionaries, ready for json.dumps
+to_dataframe(tenders)  # needs michraz[pandas]
 ```
 
 A tender is open when it has no winner and its deadline is still ahead. A deadline equal to the current moment counts
@@ -130,9 +130,9 @@ User-Agent, waits at least a second between requests to the same host, keeps res
 ```python
 from datetime import timedelta
 
-Michraz(cache_dir=None)                    # no cache
-Michraz(cache_ttl=timedelta(minutes=10))   # shorter cache
-Michraz(min_interval=3.0)                  # slower; values below 0.5 are rejected
+Michraz(cache_dir=None)  # no cache
+Michraz(cache_ttl=timedelta(minutes=10))  # shorter cache
+Michraz(min_interval=3.0)  # slower; values below 0.5 are rejected
 ```
 
 ## Sources
