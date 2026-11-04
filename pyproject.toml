@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "michraz"
+version = "0.1.0"
+description = "One clean interface to Israeli public tenders."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Yoav Haimov", email = "haimovyoav.work@gmail.com" }]
+keywords = ["israel", "tenders", "procurement", "michraz", "open-data"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Libraries",
+  "Typing :: Typed",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+
+dependencies = [
+  "httpx>=0.27",
+  "tzdata; sys_platform == 'win32'",
+]
+
+[project.urls]
+Homepage = "https://github.com/Zikithezikit/michraz"
+Documentation = "https://github.com/Zikithezikit/michraz#readme"
+Issues = "https://github.com/Zikithezikit/michraz/issues"
+Changelog = "https://github.com/Zikithezikit/michraz/blob/main/CHANGELOG.md"
+PyPI = "https://pypi.org/project/michraz/"
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "build", "twine", "respx"]
+pandas = ["pandas"]
+
+[project.scripts]
+michraz = "michraz.cli:main"
+
+[tool.setuptools.package-data]
+michraz = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
+[tool.mypy]
+files = ["src"]
+strict = true
