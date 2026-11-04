@@ -39,17 +39,19 @@ Changelog = "https://github.com/Zikithezikit/michraz/blob/main/CHANGELOG.md"
 PyPI = "https://pypi.org/project/michraz/"
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff", "mypy", "build", "twine", "respx"]
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "build", "twine", "respx", "pandas"]
 pandas = ["pandas"]
 
 [project.scripts]
 michraz = "michraz.cli:main"
 
 [tool.setuptools.package-data]
-michraz = ["py.typed"]
+michraz = ["py.typed", "sources/data/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not live'"
+markers = ["live: talks to the real services; run with `pytest -m live`"]
 
 [tool.ruff]
 line-length = 120
@@ -64,3 +66,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 files = ["src"]
 strict = true
+
+[[tool.mypy.overrides]]
+module = "pandas"
+ignore_missing_imports = true

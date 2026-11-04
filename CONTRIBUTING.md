@@ -19,6 +19,12 @@ make check
 - **No new runtime dependencies** without maintainer approval. Dev extras are fine.
 - Keep public API small. Anything not exported from `michraz/__init__.py` is private.
 
+## Tests
+
+- `make test` runs everything offline. A guard fails any test that opens a socket.
+- `pytest -m live` calls each real service once. It is manual (`Live smoke` workflow) and never a required check.
+  If it fails, a source changed: re-record the fixture in its own commit and note the date in the message.
+
 ## Pull requests
 
 1. Branch from `main` as `<short-name>`, one focused change per PR, PR against `main`.

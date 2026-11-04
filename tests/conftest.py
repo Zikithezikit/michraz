@@ -1,0 +1,49 @@
+import socket
+from collections.abc import Callable
+from typing import Any
+
+import pytest
+
+from michraz._http import HttpClient
+from tests.helpers import FakeClock, load_fixture
+
+
+@pytest.fixture(autouse=True)
+def _no_real_network(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fails any test that tries to open a real socket, unless it is marked ``live``."""
+    if request.node.get_closest_marker("live"):
+        return
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("tests must not touch the network")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+
+
+@pytest.fixture
+def clock() -> FakeClock:
+    return FakeClock()
+
+
+@pytest.fixture
+def make_http(clock: FakeClock) -> Callable[..., HttpClient]:
+    def factory(**kwargs: Any) -> HttpClient:
+        kwargs.setdefault("cache_dir", None)
+        return HttpClient(clock=clock, sleep=clock.sleep, wall_clock=clock, **kwargs)
+
+    return factory
+
+
+@pytest.fixture
+def http(make_http: Callable[..., HttpClient]) -> HttpClient:
+    return make_http()
+
+
+@pytest.fixture
+def rmi_records() -> list[dict[str, Any]]:
+    return load_fixture("rmi_search.json")  # type: ignore[no-any-return]
+
+
+@pytest.fixture
+def bs_records() -> list[dict[str, Any]]:
+    return load_fixture("beersheva.json")  # type: ignore[no-any-return]
