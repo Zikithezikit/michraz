@@ -94,6 +94,29 @@ correct and not confirmed.
   removed and the count sentence was edited to say 5 so that it matches the excerpt.
 - The site has no `robots.txt` (the request returns an empty body).
 
+## Municipalities on the shared bids page, `akko`, `arad`, `betshemesh`, `dimona`, `kfar-saba`, `kiryat-motzkin`, `nesher`, `netivot`, `nof-hagalil`, `savyon`, `tamra`, `yavne`
+
+- Platform: many municipal websites share one page layout and publish current tenders at `/bids/` (the path is
+  `/he/bids/` for Akko and `/ar/bids/` for Tamra) as HTML tables with the class `bids`. Detail pages are
+  `/bids/?id=<n>`. The archive is at `?archive=1` and is not read.
+- Verified on 2026-11-05: each of the 12 sites returned a parsable page. The parser read 3 to 29 rows per site with
+  0 parse errors.
+- The column layout differs per city, so columns are found by header text: tender name, number, type, category,
+  start (`תאריך פרסום`, `תאריך פתיחת המכרז`, `התחלת המכרז`) and deadline (`מועד אחרון להגשה`, `תאריך סגירת המכרז`,
+  `סגירת המכרז`). `source_id` is the `id` in the link, or the tender number when a row has no such link (Dimona).
+- Dates have no hour, so a deadline is read as 23:59:59 of that day. This is an assumption: the real cut-off hour
+  is in the tender documents, not on the page.
+- Rows without a closing date are kept with `deadline=None`. Kiryat Motzkin lists 26 of 29 rows that way.
+- Not covered: the 25 other sites that answered the same path with HTML but no `bids` table (for example Herzliya,
+  Raanana, Holon, Rehovot, Ashkelon, Lod, Modiin, Karmiel, Tiberias, Afula) use a different layout. Jerusalem,
+  Tel Aviv, Haifa, Petah Tikva, Rishon LeZion and Ashdod were not reachable the same way.
+- Several sites mix staff vacancies (`דרושים`, job ads) into the same tables, for example Beit Shemesh and Kfar Saba.
+  They come through as tenders. michraz does not tell them apart.
+- Azor uses the same platform but its `robots.txt` disallows every path, so it is not included.
+- The other 12 sites returned an HTML page (not a rules file) for `/robots.txt`, so they state no rules.
+- `tests/fixtures/bids_<city>.html` holds the real table of each city, cut to its header and the first three rows
+  of the first table that has rows.
+
 ## Robots and terms
 
 Checked 2026-11-04 from the development machine with the michraz User-Agent.

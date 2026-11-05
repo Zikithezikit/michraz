@@ -54,6 +54,12 @@ Keys are the members of `michraz.GovExtra`: `type` (for example `מכרז פומ
 example `עודכן`) and `raw`. `source_id` is the portal's publication number, `number` is its procedure number, and
 `documents` is empty because detail pages are not fetched.
 
+### Municipal `extra`
+
+Keys are the members of `michraz.BidsExtra`: `type` (for example `פומבי`), `category` (when the site has such a
+column) and `raw` (every column of the row by its header). `source` is the municipality's subdomain, for example
+`kfar-saba`. Dates carry no hour on these sites, so `deadline` is the end of the closing day.
+
 ## `Document`
 
 | Field | Type | Meaning |

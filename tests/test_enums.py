@@ -11,7 +11,7 @@ from michraz.models import RAW_EXTRA_KEY
 from michraz.sources.beersheva import API_URL
 from michraz.sources.gov import SEARCH_URL as GOV_URL
 from michraz.sources.rmi import SEARCH_URL
-from tests.helpers import GOV_EMPTY_PAGE, ckan
+from tests.helpers import GOV_EMPTY_PAGE, ckan, mock_municipalities
 
 
 class Sample(StrEnum):
@@ -71,6 +71,7 @@ def test_enum_keys_work_end_to_end_through_the_cli(respx_mock, rmi_records, bs_r
     respx_mock.post(SEARCH_URL).respond(json=rmi_records)
     respx_mock.get(API_URL).respond(json=ckan(bs_records))
     respx_mock.get(GOV_URL).respond(text=GOV_EMPTY_PAGE)
+    mock_municipalities(respx_mock)
     for name in SourceName:
         assert main([Command.SEARCH, "--no-cache", "--source", name]) == ExitCode.OK
     assert "rmi" in capsys.readouterr().out

@@ -3,11 +3,11 @@ from datetime import date
 
 import pytest
 
-from michraz import Michraz, RmiSource, SourceUnavailableError, Tender
+from michraz import BeerShevaSource, Michraz, RmiSource, SourceUnavailableError, Tender
 from michraz.sources.beersheva import API_URL
 from michraz.sources.gov import SEARCH_URL as GOV_URL
 from michraz.sources.rmi import SEARCH_URL
-from tests.helpers import GOV_EMPTY_PAGE, at, ckan, make_tender
+from tests.helpers import GOV_EMPTY_PAGE, at, ckan, make_tender, mock_municipalities
 
 
 class FakeSource:
@@ -28,6 +28,7 @@ def served(respx_mock, rmi_records, bs_records):
     respx_mock.post(SEARCH_URL).respond(json=rmi_records)
     respx_mock.get(API_URL).respond(json=ckan(bs_records))
     respx_mock.get(GOV_URL).respond(text=GOV_EMPTY_PAGE)
+    mock_municipalities(respx_mock)
 
 
 def test_searches_every_default_source_sorted_by_deadline(served):
@@ -100,9 +101,28 @@ def test_sources_share_the_facade_client(served):
         assert rmi._http is m._http
 
 
-def test_a_source_that_is_down_raises(respx_mock):
+def test_a_source_that_is_down_raises_when_it_is_the_only_one(respx_mock):
     respx_mock.post(SEARCH_URL).respond(404)
-    with Michraz(cache_dir=None) as m, pytest.raises(SourceUnavailableError):
+    with Michraz([RmiSource()], cache_dir=None) as m, pytest.raises(SourceUnavailableError):
+        m.search()
+
+
+def test_one_source_down_does_not_hide_the_others(respx_mock, bs_records):
+    respx_mock.post(SEARCH_URL).respond(404)
+    respx_mock.get(API_URL).respond(json=ckan(bs_records))
+    with Michraz([RmiSource(), BeerShevaSource()], cache_dir=None) as m:
+        tenders = m.search()
+        assert {t.source for t in tenders} == {"beersheva"}
+        assert len(m.last_errors) == 1 and m.last_errors[0].startswith("rmi: HTTP 404")
+
+
+def test_all_sources_down_raises_the_first_error(respx_mock):
+    respx_mock.post(SEARCH_URL).respond(404)
+    respx_mock.get(API_URL).respond(503)
+    with (
+        Michraz([RmiSource(), BeerShevaSource()], cache_dir=None) as m,
+        pytest.raises(SourceUnavailableError, match="rmi"),
+    ):
         m.search()
 
 
@@ -116,7 +136,7 @@ def test_second_search_uses_the_cache(respx_mock, rmi_records, tmp_path):
 
 def test_repr_lists_source_names():
     with Michraz(cache_dir=None) as m:
-        assert repr(m) == "Michraz(sources=['rmi', 'beersheva', 'gov'])"
+        assert repr(m).startswith("Michraz(sources=['rmi', 'beersheva', 'gov', 'akko'")
 
 
 def test_base_source_is_abstract():

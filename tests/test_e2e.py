@@ -11,9 +11,10 @@ import pytest
 from michraz import Michraz, to_csv, to_dicts
 from michraz.cli import main
 from michraz.sources.beersheva import API_URL
+from michraz.sources.bids import MUNICIPALITIES
 from michraz.sources.gov import SEARCH_URL as GOV_URL
 from michraz.sources.rmi import SEARCH_URL
-from tests.helpers import FIXTURES, GOV_EMPTY_PAGE, ckan
+from tests.helpers import FIXTURES, GOV_EMPTY_PAGE, ckan, mock_municipalities
 
 
 @pytest.fixture
@@ -21,6 +22,7 @@ def services(respx_mock, rmi_records, bs_records):
     rmi = respx_mock.post(SEARCH_URL).respond(json=rmi_records)
     beersheva = respx_mock.get(API_URL).respond(json=ckan(bs_records))
     respx_mock.get(GOV_URL).respond(text=GOV_EMPTY_PAGE)
+    mock_municipalities(respx_mock)
     return rmi, beersheva
 
 
@@ -62,6 +64,7 @@ def test_one_bad_record_does_not_kill_the_batch(respx_mock, rmi_records, bs_reco
     respx_mock.post(SEARCH_URL).respond(json=[*rmi_records, {"MichrazID": 1, "SgiraDate": "garbage"}])
     respx_mock.get(API_URL).respond(json=ckan([*bs_records, {"שם מכרז": "missing columns"}]))
     respx_mock.get(GOV_URL).respond(text=GOV_EMPTY_PAGE)
+    mock_municipalities(respx_mock)
     with Michraz(cache_dir=None) as m:
         tenders = m.search()
     assert len(tenders) == len(rmi_records) + len(bs_records)
@@ -78,6 +81,7 @@ def all_services(respx_mock, rmi_records, bs_records):
     respx_mock.post(SEARCH_URL).respond(json=rmi_records)
     respx_mock.get(API_URL).respond(json=ckan(bs_records))
     respx_mock.get(GOV_URL).respond(text=(FIXTURES / "gov_search.html").read_text(encoding="utf-8"))
+    mock_municipalities(respx_mock)
 
 
 def test_every_default_source_contributes_and_exports(all_services, tmp_path):
@@ -112,3 +116,42 @@ def test_cli_prints_government_tenders_as_json(all_services, tmp_path, monkeypat
     out = json.loads(capsys.readouterr().out)
     assert len(out) == 5 and {t["source"] for t in out} == {"gov"}
     assert all("mr.gov.il" in t["attribution"] for t in out)
+
+
+@pytest.fixture
+def every_service(respx_mock, rmi_records, bs_records):
+    respx_mock.post(SEARCH_URL).respond(json=rmi_records)
+    respx_mock.get(API_URL).respond(json=ckan(bs_records))
+    respx_mock.get(GOV_URL).respond(text=(FIXTURES / "gov_search.html").read_text(encoding="utf-8"))
+    for city in MUNICIPALITIES:
+        body = (FIXTURES / f"bids_{city.key}.html").read_text(encoding="utf-8")
+        respx_mock.get(f"https://{city.domain}{city.path}").respond(text=body)
+
+
+def test_every_default_source_feeds_one_search_and_one_csv(every_service, tmp_path):
+    with Michraz(cache_dir=None) as m:
+        tenders = m.search()
+        assert m.last_errors == []
+    assert {t.source for t in tenders} == {"rmi", "beersheva", "gov", *(c.key for c in MUNICIPALITIES)}
+
+    path = tmp_path / "everything.csv"
+    to_csv(tenders, path)
+    with open(path, encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == len(tenders) and all(r["attribution"] for r in rows)
+
+
+def test_one_municipal_site_down_leaves_the_rest_of_the_search_intact(every_service, respx_mock):
+    respx_mock.get(f"https://{MUNICIPALITIES[0].domain}{MUNICIPALITIES[0].path}").respond(status_code=503)
+    with Michraz(cache_dir=None) as m:
+        tenders = m.search()
+        assert len(m.last_errors) == 1 and m.last_errors[0].startswith(f"{MUNICIPALITIES[0].key}:")
+    assert MUNICIPALITIES[0].key not in {t.source for t in tenders}
+    assert {"rmi", "gov", "kfar-saba"} <= {t.source for t in tenders}
+
+
+def test_cli_searches_one_municipality(every_service, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr("michraz.cli.DEFAULT_CACHE_DIR", tmp_path / "cache")
+    assert main(["search", "--source", "kfar-saba", "--keyword", "מועדון"]) == 0
+    out = capsys.readouterr().out
+    assert "kfar-saba" in out and "עיריית כפר סבא" in out and "1 tender" in out
