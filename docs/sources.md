@@ -75,6 +75,25 @@ correct and not confirmed.
 - 402 rows have a winner, 51 have no files. `קבצים` is HTML that is not always wrapped in `<p>`, and some links
   encode the URL as `http&#58;//...`. It is read with `html.parser`.
 
+## Central government, `gov`
+
+- Portal: the Government Procurement Administration's tender site, `https://mr.gov.il/ilgstorefront/he/search/`.
+  It has no JSON API. The search page is server-rendered HTML, 20 results per page, `page` starts at 0.
+- Attribution: `Government Procurement Administration (מינהל הרכש הממשלתי), mr.gov.il`. The license of the data was
+  not checked.
+- Query: `q=:updateDate:archive:false:status:<status>`, `s=TENDER`. The portal reports 8 835 tenders in total, 7 654
+  of them with status `חלף מועד הגשה` (submission date passed). michraz reads only the statuses `פורסם`, `עודכן` and
+  `חדש`.
+- Verified on 2026-11-05: those three statuses returned 123, 256 and 40 tenders. Reading all of them gave 419
+  tenders and 0 parse errors in about 21 seconds. 183 had a deadline still ahead and 14 had no deadline.
+- Fields read: title, type (`מכרז פומבי`), publisher, publication number (used as `source_id`), procedure number
+  (used as `number`), publication date, update date, deadline (`dd/mm/yyyy HH:MM`) and status.
+- Not verified: statuses `בעדכון` (32) and `עתידי` (15) are not read, because it is unclear whether they accept
+  offers. Detail pages and attached documents are not fetched, so `documents` is empty.
+- `tests/fixtures/gov_search.html` is five real result blocks copied from a live page. The embedded images were
+  removed and the count sentence was edited to say 5 so that it matches the excerpt.
+- The site has no `robots.txt` (the request returns an empty body).
+
 ## Robots and terms
 
 Checked 2026-11-04 from the development machine with the michraz User-Agent.

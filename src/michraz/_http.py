@@ -135,7 +135,7 @@ class HttpClient(Closeable):
         min_interval: Minimum seconds between requests to the same host. Must be at least 0.5.
         client: An ``httpx.Client`` to use. By default one is created and owned by this object.
         clock: Monotonic clock in seconds. Replace it in tests.
-        sleep: Sleep function. Replace it in tests so they do not wait.
+        sleep: Sleep function. Defaults to ``time.sleep``, looked up when the client is created.
         wall_clock: Wall-clock time in seconds since the epoch, used for cache age.
 
     Raises:
@@ -150,14 +150,14 @@ class HttpClient(Closeable):
         min_interval: float = DEFAULT_MIN_INTERVAL,
         client: httpx.Client | None = None,
         clock: Callable[[], float] = time.monotonic,
-        sleep: Callable[[float], None] = time.sleep,
+        sleep: Callable[[float], None] | None = None,
         wall_clock: Callable[[], float] = time.time,
     ) -> None:
         if min_interval < MIN_INTERVAL_FLOOR:
             raise ValueError(f"min_interval must be at least {MIN_INTERVAL_FLOOR} seconds")
         self.min_interval = min_interval
         self._clock = clock
-        self._sleep = sleep
+        self._sleep = sleep or time.sleep
         self._wall_clock = wall_clock
         self._owns_client = client is None
         self._client = client or httpx.Client(
@@ -207,16 +207,32 @@ class HttpClient(Closeable):
     def _full_url(url: str, params: Mapping[str, Any] | None) -> str:
         return str(httpx.URL(url, params=params)) if params else url
 
+    def get_text(self, source: str, url: str, params: Mapping[str, Any] | None = None) -> str:
+        """Fetches ``url`` with GET and returns the body as text. Cached and rate-limited like JSON.
+
+        Raises:
+            SourceUnavailableError: If the host cannot be reached or answers with an error status.
+        """
+        text: str = self._fetch(source, HttpMethod.GET, self._full_url(url, params), None, lambda r: r.text)
+        return text
+
     def _json(self, source: str, method: HttpMethod, url: str, payload: Any) -> Any:
+        def decode(response: httpx.Response) -> Any:
+            try:
+                return response.json()
+            except ValueError as exc:
+                raise SourceFormatError(source, f"response is not JSON: {_truncate(response.text)!r}") from exc
+
+        return self._fetch(source, method, url, payload, decode)
+
+    def _fetch(
+        self, source: str, method: HttpMethod, url: str, payload: Any, decode: Callable[[httpx.Response], Any]
+    ) -> Any:
         key = _request_key(method, url, payload)
         if self._cache and (hit := self._cache.fresh(key)) is not None:
             logger.debug("cache hit for %s", url)
             return hit[1]
-        response = self._send(source, method, url, payload)
-        try:
-            data = response.json()
-        except ValueError as exc:
-            raise SourceFormatError(source, f"response is not JSON: {_truncate(response.text)!r}") from exc
+        data = decode(self._send(source, method, url, payload))
         if self._cache:
             self._cache.write(key, data)
         return data

@@ -6,14 +6,16 @@ import pytest
 from michraz import __version__
 from michraz.cli import main
 from michraz.sources.beersheva import API_URL
+from michraz.sources.gov import SEARCH_URL as GOV_URL
 from michraz.sources.rmi import SEARCH_URL
-from tests.helpers import ckan
+from tests.helpers import GOV_EMPTY_PAGE, ckan
 
 
 @pytest.fixture
 def served(respx_mock, rmi_records, bs_records):
     respx_mock.post(SEARCH_URL).respond(json=rmi_records)
     respx_mock.get(API_URL).respond(json=ckan(bs_records))
+    respx_mock.get(GOV_URL).respond(text=GOV_EMPTY_PAGE)
 
 
 def run(capsys, *argv):

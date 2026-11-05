@@ -48,6 +48,12 @@ Keys are the members of `michraz.RmiExtra`, a string enum: `tender.extra[RmiExtr
 | `khal_yaad_rashi` | `KhalYaadRashi`, kept as is. Observed values are 1, 2 and null, so it is a code and not a bid amount. |
 | `mekuvan` | `Mekuvan`, kept as is. Its meaning is unconfirmed. |
 
+### Government `extra`
+
+Keys are the members of `michraz.GovExtra`: `type` (for example `מכרז פומבי`), `status` (the portal's status, for
+example `עודכן`) and `raw`. `source_id` is the portal's publication number, `number` is its procedure number, and
+`documents` is empty because detail pages are not fetched.
+
 ## `Document`
 
 | Field | Type | Meaning |

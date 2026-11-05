@@ -9,6 +9,13 @@ from tests.helpers import FakeClock, load_fixture
 
 
 @pytest.fixture(autouse=True)
+def _no_real_sleep(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skips the rate-limit wait of clients built inside a test. Live tests keep the real wait."""
+    if not request.node.get_closest_marker("live"):
+        monkeypatch.setattr("time.sleep", lambda seconds: None)
+
+
+@pytest.fixture(autouse=True)
 def _no_real_network(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
     """Fails any test that tries to open a real socket, unless it is marked ``live``."""
     if request.node.get_closest_marker("live"):
