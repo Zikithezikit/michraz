@@ -10,14 +10,16 @@ import pytest
 from michraz import Michraz, to_csv, to_dicts
 from michraz.cli import main
 from michraz.sources.beersheva import API_URL
+from michraz.sources.gov import SEARCH_URL as GOV_URL
 from michraz.sources.rmi import SEARCH_URL
-from tests.helpers import ckan
+from tests.helpers import GOV_EMPTY_PAGE, ckan
 
 
 @pytest.fixture
 def services(respx_mock, rmi_records, bs_records):
     rmi = respx_mock.post(SEARCH_URL).respond(json=rmi_records)
     beersheva = respx_mock.get(API_URL).respond(json=ckan(bs_records))
+    respx_mock.get(GOV_URL).respond(text=GOV_EMPTY_PAGE)
     return rmi, beersheva
 
 
@@ -58,6 +60,7 @@ def test_cli_end_to_end_with_a_warm_cache(services, tmp_path, monkeypatch, capsy
 def test_one_bad_record_does_not_kill_the_batch(respx_mock, rmi_records, bs_records):
     respx_mock.post(SEARCH_URL).respond(json=[*rmi_records, {"MichrazID": 1, "SgiraDate": "garbage"}])
     respx_mock.get(API_URL).respond(json=ckan([*bs_records, {"שם מכרז": "missing columns"}]))
+    respx_mock.get(GOV_URL).respond(text=GOV_EMPTY_PAGE)
     with Michraz(cache_dir=None) as m:
         tenders = m.search()
     assert len(tenders) == len(rmi_records) + len(bs_records)

@@ -7,7 +7,9 @@
 
 Israeli public tenders (מכרזים) in Python. One `Tender` object, whichever site it came from.
 
-Sources today: Israel Land Authority land tenders and Beer Sheva municipal tenders.
+Sources today: Israel Land Authority land tenders, Beer Sheva municipal tenders, and central-government tenders
+from mr.gov.il. The first search reads about 25 pages from mr.gov.il, so it takes around 20 seconds. After that the
+responses are cached for an hour.
 
 > Unofficial client. It can lag or miss tenders, and parsing can break when a source changes. Confirm deadlines on
 > the publisher's page before you act. Not affiliated with the Israel Land Authority or any municipality.

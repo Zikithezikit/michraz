@@ -2,6 +2,13 @@
 
 All notable changes are listed here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased
+
+### Added
+- `GovSource` (`gov`): central-government tenders from mr.gov.il, read from the portal's HTML search. It is part of
+  the default sources.
+- `HttpClient.get_text` for sources that serve HTML.
+
 ## 0.1.0 (2026-11-05)
 
 ### Added

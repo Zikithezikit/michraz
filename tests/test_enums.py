@@ -9,8 +9,9 @@ from michraz.cli import Command, ExitCode, main
 from michraz.export import CSV_COLUMNS, CsvColumn
 from michraz.models import RAW_EXTRA_KEY
 from michraz.sources.beersheva import API_URL
+from michraz.sources.gov import SEARCH_URL as GOV_URL
 from michraz.sources.rmi import SEARCH_URL
-from tests.helpers import ckan
+from tests.helpers import GOV_EMPTY_PAGE, ckan
 
 
 class Sample(StrEnum):
@@ -26,7 +27,7 @@ def test_str_enum_behaves_like_its_value():
 
 def test_source_names_match_the_sources_and_the_cli():
     assert RmiSource.name == SourceName.RMI and BeerShevaSource.name == SourceName.BEERSHEVA
-    assert [s.value for s in SourceName] == ["rmi", "beersheva"]
+    assert [s.value for s in SourceName] == ["rmi", "beersheva", "gov"]
     assert RmiSource.name == "rmi" and type(RmiSource.name) is str  # plain str, so custom sources need no enum
 
 
@@ -69,6 +70,7 @@ def test_exit_codes_and_commands():
 def test_enum_keys_work_end_to_end_through_the_cli(respx_mock, rmi_records, bs_records, capsys):
     respx_mock.post(SEARCH_URL).respond(json=rmi_records)
     respx_mock.get(API_URL).respond(json=ckan(bs_records))
+    respx_mock.get(GOV_URL).respond(text=GOV_EMPTY_PAGE)
     for name in SourceName:
         assert main([Command.SEARCH, "--no-cache", "--source", name]) == ExitCode.OK
     assert "rmi" in capsys.readouterr().out

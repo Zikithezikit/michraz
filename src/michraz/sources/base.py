@@ -22,6 +22,7 @@ class SourceName(StrEnum):
 
     RMI = "rmi"
     BEERSHEVA = "beersheva"
+    GOV = "gov"
 
 
 @runtime_checkable

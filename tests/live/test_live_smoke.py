@@ -6,7 +6,7 @@ a fresh fixture in a separate commit; never loosen the parser to hide it.
 
 import pytest
 
-from michraz import BeerShevaSource, RmiSource
+from michraz import BeerShevaSource, GovSource, RmiSource
 
 pytestmark = pytest.mark.live
 
@@ -33,3 +33,11 @@ def test_beersheva_shape():
         tender = next(iter(source.fetch()))
     assert tender.title and tender.source_id and tender.url
     assert {"שם מכרז", "מספר מכרז", "תאריך אחרון להגשה", "זוכה במכרז", "קבצים", "URL"} <= set(tender.extra["raw"])
+
+
+def test_gov_first_page_shape():
+    with GovSource(cache_dir=None) as source:
+        tender = next(iter(source.fetch()))
+    assert tender.title and tender.source_id and tender.publisher
+    assert tender.url.startswith("https://mr.gov.il/")
+    assert not source.errors

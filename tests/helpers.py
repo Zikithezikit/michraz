@@ -41,3 +41,6 @@ def make_tender(**overrides: Any) -> Tender:
     fields: dict[str, Any] = {"source": "test", "source_id": "1", "title": "title", "attribution": "credit"}
     fields.update(overrides)
     return Tender(**fields)
+
+
+GOV_EMPTY_PAGE = "<p>נמצאו 0 תוצאות עבור ערך  במכרזים</p>"

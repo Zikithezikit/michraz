@@ -5,8 +5,9 @@ import pytest
 
 from michraz import Michraz, RmiSource, SourceUnavailableError, Tender
 from michraz.sources.beersheva import API_URL
+from michraz.sources.gov import SEARCH_URL as GOV_URL
 from michraz.sources.rmi import SEARCH_URL
-from tests.helpers import at, ckan, make_tender
+from tests.helpers import GOV_EMPTY_PAGE, at, ckan, make_tender
 
 
 class FakeSource:
@@ -26,6 +27,7 @@ class FakeSource:
 def served(respx_mock, rmi_records, bs_records):
     respx_mock.post(SEARCH_URL).respond(json=rmi_records)
     respx_mock.get(API_URL).respond(json=ckan(bs_records))
+    respx_mock.get(GOV_URL).respond(text=GOV_EMPTY_PAGE)
 
 
 def test_searches_every_default_source_sorted_by_deadline(served):
@@ -114,7 +116,7 @@ def test_second_search_uses_the_cache(respx_mock, rmi_records, tmp_path):
 
 def test_repr_lists_source_names():
     with Michraz(cache_dir=None) as m:
-        assert repr(m) == "Michraz(sources=['rmi', 'beersheva'])"
+        assert repr(m) == "Michraz(sources=['rmi', 'beersheva', 'gov'])"
 
 
 def test_base_source_is_abstract():
