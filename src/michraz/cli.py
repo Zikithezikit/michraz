@@ -61,6 +61,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     search = commands.add_parser(Command.SEARCH.value, parents=[common], help="search tenders")
     search.add_argument("--keyword", "-k", help="text to look for in the title or number")
+    search.add_argument(
+        "--whole-word", action="store_true", help="match the keyword as a whole word, not as part of one"
+    )
     search.add_argument("--open", action="store_true", help="only tenders that can still receive submissions")
     search.add_argument("--source", choices=[source.name for source in BUILT_IN], help="search a single source")
     search.add_argument(
@@ -117,7 +120,9 @@ def _print_table(tenders: Sequence[Tender], kind: str) -> None:
 
 def _search(args: argparse.Namespace, m: Michraz) -> int:
     kind = None if args.kind == ALL_KINDS else TenderKind(args.kind)
-    tenders = m.search(keyword=args.keyword, open_only=args.open, source=args.source, kind=kind)
+    tenders = m.search(
+        keyword=args.keyword, whole_word=args.whole_word, open_only=args.open, source=args.source, kind=kind
+    )
     if args.csv:
         count = to_csv(tenders, args.csv)
         print(f"wrote {count} tenders to {args.csv}", file=sys.stderr)

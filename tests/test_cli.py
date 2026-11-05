@@ -110,3 +110,9 @@ def test_a_command_is_required(capsys):
     with pytest.raises(SystemExit) as exit_info:
         main([])
     assert exit_info.value.code == 2
+
+
+def test_whole_word_option(served, capsys):
+    base = ("search", "--no-cache", "--source", "beersheva", "--keyword", "גינו")
+    assert "1 tender\n" in run(capsys, *base)[1]  # part of "גינון"
+    assert "0 tenders\n" in run(capsys, *base, "--whole-word")[1]
