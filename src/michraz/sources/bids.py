@@ -30,6 +30,7 @@ _DATE = re.compile(r"\d{2}/\d{2}/\d{4}")
 _PUBLISHED_HEADER = re.compile(r"(מועד|תאריך) (פרסום|פתיחת)|התחלת")
 _DEADLINE_HEADER = re.compile(r"אחרון להגשה|סגירת")
 _VACANCY_SECTION = re.compile(r"דרושים|כוח אדם|כח אדם|משאבי אנוש|מכרזי כ\"א")
+_COMMITTEE = re.compile(r"^ועדת מכרזים")
 _VACANCY_TITLE = re.compile(r"דרושים|דרוש/ה|מכרז (חיצוני|פנימי|פנים)")
 
 
@@ -213,6 +214,9 @@ class BidsSource(BaseSource[tuple[Table, list[Cell]]]):
     def records(self) -> Iterator[tuple[Table, list[Cell]]]:
         """Yields ``(table, row)`` for every row of every table that has a tender name column.
 
+        Rows about the tender committee itself (``ועדת מכרזים``, its meetings and protocols) are not tenders and
+        are left out.
+
         Raises:
             SourceUnavailableError: If the site cannot be reached.
             SourceFormatError: If the page has no bids table.
@@ -222,8 +226,12 @@ class BidsSource(BaseSource[tuple[Table, list[Cell]]]):
         if not usable:
             raise SourceFormatError(self.name, "no bids table with a tender name column on the page")
         for table in usable:
+            name, category = _column(table.headers, _Header.NAME), _column(table.headers, _Header.CATEGORY)
             for row in table.rows:
-                yield table, row
+                if not (
+                    _COMMITTEE.search(_cell_text(row, name) or "") or _COMMITTEE.search(_cell_text(row, category) or "")
+                ):
+                    yield table, row
 
     def record_id(self, record: tuple[Table, list[Cell]]) -> object:
         _, row = record

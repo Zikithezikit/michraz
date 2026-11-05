@@ -106,7 +106,7 @@ correct and not confirmed.
   `סגירת המכרז`). `source_id` is the `id` in the link, or the tender number when a row has no such link (Dimona).
 - Dates have no hour, so a deadline is read as 23:59:59 of that day. This is an assumption: the real cut-off hour
   is in the tender documents, not on the page.
-- Rows without a closing date are kept with `deadline=None`. Kiryat Motzkin lists 26 of 29 rows that way.
+- Rows without a closing date are kept with `deadline=None`. Kiryat Motzkin listed 26 of 29 that way before its committee rows were filtered out.
 - Not covered: the 25 other sites that answered the same path with HTML but no `bids` table (for example Herzliya,
   Raanana, Holon, Rehovot, Ashkelon, Lod, Modiin, Karmiel, Tiberias, Afula) use a different layout. Jerusalem,
   Tel Aviv, Haifa, Petah Tikva, Rishon LeZion and Ashdod were not reachable the same way.
@@ -114,8 +114,8 @@ correct and not confirmed.
   A row is a vacancy (`kind=vacancy`) when its table caption or category says `דרושים`, `כוח אדם`, `כח אדם`,
   `משאבי אנוש` or `מכרזי כ"א`, or its title says `דרושים`, `דרוש/ה` or `מכרז חיצוני/פנימי`. On 2026-11-05 this
   marked 28 rows as vacancies. It is a heuristic: a vacancy under an unexpected caption is still listed as a tender.
-- Kiryat Motzkin lists 29 rows titled `ועדת מכרזים` (tender committee pages). They are not tenders and are not
-  filtered out.
+- Kiryat Motzkin lists rows about its tender committee (category or title `ועדת מכרזים`: meetings and protocols, 24 of
+  29 rows on 2026-11-05). They are not tenders and are left out.
 - Azor uses the same platform but its `robots.txt` disallows every path, so it is not included.
 - The other 12 sites returned an HTML page (not a rules file) for `/robots.txt`, so they state no rules.
 - `tests/fixtures/bids_<city>.html` holds the real table of each city, cut to its header and the first three rows
