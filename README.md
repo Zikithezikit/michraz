@@ -15,7 +15,7 @@ responses are cached for an hour.
 > Unofficial client. It can lag or miss tenders, and parsing can break when a source changes. Confirm deadlines on
 > the publisher's page before you act. Not affiliated with the Israel Land Authority or any municipality.
 
-![What michraz does](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/overview.png)
+![michraz architecture: how one search reaches the data and comes back](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/architecture.png)
 
 ## Install
 
@@ -48,7 +48,7 @@ michraz search --open --source rmi
 michraz search --keyword גינון --csv gardening.csv
 ```
 
-![Terminal output](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/cli.png)
+![michraz search in the terminal](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/cli-output.png)
 
 A record that fails to parse is skipped and listed in `m.last_errors`. If one source is down, the others still
 answer and its error is listed there too. `SourceUnavailableError` is raised only when every searched source fails. More scripts are in [examples](https://github.com/Zikithezikit/michraz/tree/main/examples).
@@ -77,14 +77,14 @@ class MySource(BaseSource[dict]):
 Then `Michraz([MySource()])`. A city that uses the shared `/bids/` page needs only a name, a publisher and a domain
 (see `michraz/sources/municipal.py`).
 
-![Classes](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/classes.png)
+![Class diagram: sources and the Tender model](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/class-diagram.png)
 
 Fields are documented in [docs/model.md](https://github.com/Zikithezikit/michraz/blob/main/docs/model.md), and how
 each source was checked in [docs/sources.md](https://github.com/Zikithezikit/michraz/blob/main/docs/sources.md).
 
 ## Polite by default
 
-![Request flow](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/request_flow.png)
+![Flowchart: what happens during one search](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/search-flowchart.png)
 
 Honest User-Agent, one request per second per host, one-hour disk cache, at most two retries. Tune it with
 `Michraz(cache_dir=None, cache_ttl=..., min_interval=...)`.
