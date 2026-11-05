@@ -17,6 +17,8 @@ responses are cached for an hour.
 
 ![michraz architecture: how one search reaches the data and comes back](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/architecture.png)
 
+*[Source file](https://github.com/Zikithezikit/michraz/blob/main/docs/diagrams/architecture.drawio) or [open it in draw.io](https://app.diagrams.net/#Uhttps%3A%2F%2Fraw.githubusercontent.com%2FZikithezikit%2Fmichraz%2Fmain%2Fdocs%2Fdiagrams%2Farchitecture.drawio).*
+
 ## Install
 
 ```bash
@@ -55,6 +57,8 @@ answer and its error is listed there too. `SourceUnavailableError` is raised onl
 
 ## Add a source
 
+The class diagram at the end of this section shows how the pieces fit.
+
 Subclass `BaseSource`. Say how to read the records and how to turn one into a `Tender`. Skipping bad records,
 reporting them in `errors` and dropping repeats is shared.
 
@@ -79,12 +83,18 @@ Then `Michraz([MySource()])`. A city that uses the shared `/bids/` page needs on
 
 ![Class diagram: sources and the Tender model](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/class-diagram.png)
 
+*[Source file](https://github.com/Zikithezikit/michraz/blob/main/docs/diagrams/class-diagram.drawio) or [open it in draw.io](https://app.diagrams.net/#Uhttps%3A%2F%2Fraw.githubusercontent.com%2FZikithezikit%2Fmichraz%2Fmain%2Fdocs%2Fdiagrams%2Fclass-diagram.drawio).*
+
 Fields are documented in [docs/model.md](https://github.com/Zikithezikit/michraz/blob/main/docs/model.md), and how
 each source was checked in [docs/sources.md](https://github.com/Zikithezikit/michraz/blob/main/docs/sources.md).
 
 ## Polite by default
 
+The flowchart shows what happens to every request, from the cache check to the parsed tenders.
+
 ![Flowchart: what happens during one search](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/search-flowchart.png)
+
+*[Source file](https://github.com/Zikithezikit/michraz/blob/main/docs/diagrams/search-flowchart.drawio) or [open it in draw.io](https://app.diagrams.net/#Uhttps%3A%2F%2Fraw.githubusercontent.com%2FZikithezikit%2Fmichraz%2Fmain%2Fdocs%2Fdiagrams%2Fsearch-flowchart.drawio).*
 
 Honest User-Agent, one request per second per host, one-hour disk cache, at most two retries. Tune it with
 `Michraz(cache_dir=None, cache_ttl=..., min_interval=...)`.
@@ -99,9 +109,10 @@ Honest User-Agent, one request per second per host, one-hour disk cache, at most
 
 ```bash
 make venv && make check
+make diagrams   # re-export the PNGs from docs/diagrams (needs draw.io desktop and Graphviz)
 ```
 
-Tests run against recorded responses and never touch the network. See
+The diagrams are draw.io files in `docs/diagrams`, so they stay editable. Tests run against recorded responses and never touch the network. See
 [CONTRIBUTING.md](https://github.com/Zikithezikit/michraz/blob/main/CONTRIBUTING.md).
 
 MIT licensed. The data belongs to its publishers and carries their licenses.
