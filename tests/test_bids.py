@@ -2,8 +2,8 @@ from datetime import timedelta
 
 import pytest
 
-from michraz import BidsSource, SourceFormatError, SourceUnavailableError
-from michraz.sources.bids import MUNICIPALITIES, BidsExtra, Municipality, municipal_sources, parse_tables
+from michraz import BidsSource, SourceFormatError, SourceUnavailableError, TenderKind
+from michraz.sources.bids import MUNICIPALITIES, BidsExtra, Municipality, Table, _Cell, municipal_sources, parse_tables
 from tests.helpers import FIXTURES, at
 
 CITIES = {m.key: m for m in MUNICIPALITIES}
@@ -114,7 +114,7 @@ def test_server_error_raises_unavailable(respx_mock, http):
 
 def test_parse_tables_ignores_tables_that_are_not_bids_tables():
     tables = parse_tables("<table><tr><th>x</th></tr></table><table class='bids'><tr><th>y</th></tr></table>")
-    assert tables == [(["y"], [])]
+    assert [(t.headers, t.rows) for t in tables] == [(["y"], [])]
 
 
 def test_registry_is_consistent():
@@ -124,3 +124,33 @@ def test_registry_is_consistent():
     assert "azor" not in keys  # its robots.txt disallows every path
     assert [s.name for s in municipal_sources()] == keys
     assert isinstance(MUNICIPALITIES[0], Municipality)
+
+
+@pytest.mark.parametrize(
+    ("key", "source_id", "kind"),
+    [
+        ("kfar-saba", "663", TenderKind.VACANCY),  # table captioned "human resources tenders"
+        ("kfar-saba", "662", TenderKind.TENDER),  # table captioned "calls for proposals"
+        ("dimona", "68/26", TenderKind.VACANCY),  # table captioned "manpower"
+        ("betshemesh", "3312", TenderKind.VACANCY),  # table captioned "HR tenders"
+        ("yavne", "177", TenderKind.TENDER),  # external investment-management tender
+        ("nof-hagalil", "1923", TenderKind.TENDER),
+    ],
+)
+def test_staff_vacancies_are_told_apart_from_tenders(respx_mock, http, key, source_id, kind):
+    _, tenders = fetch(respx_mock, http, key)
+    assert next(t for t in tenders if t.source_id == source_id).kind == kind
+
+
+def test_a_vacancy_is_recognized_by_its_title_when_the_table_has_no_caption():
+    source = BidsSource(CITIES["savyon"])
+    table = Table(caption="", headers=["שם המכרז"], rows=[])
+    job = source.parse(table, [_Cell("מכרז חיצוני 12/26 מנהל/ת מחלקה", "?id=1")])
+    ad = source.parse(table, [_Cell("מודעת דרושים D1-26 סייעת", "?id=2")])
+    work = source.parse(table, [_Cell("מכרז פומבי 12/26 עבודות גינון", "?id=3")])
+    assert (job.kind, ad.kind, work.kind) == (TenderKind.VACANCY, TenderKind.VACANCY, TenderKind.TENDER)
+
+
+def test_the_caption_is_read_even_when_the_site_hides_it():
+    tables = parse_tables('<table class="bids"><caption class="sr-only">דרושים</caption><tr><th>x</th></tr></table>')
+    assert tables[0].caption == "דרושים"

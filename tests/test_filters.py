@@ -105,3 +105,13 @@ def test_tender_filter_rejects_naive_bounds_on_creation():
         TenderFilter(closing_before=datetime(2026, 12, 1))
     with pytest.raises(ValueError, match="timezone-aware"):
         TenderFilter(now=datetime(2026, 12, 1))
+
+
+def test_kind_filter_keeps_only_that_kind():
+    from michraz import TenderKind
+
+    tender = make_tender(source_id="1")
+    vacancy = make_tender(source_id="2", kind=TenderKind.VACANCY)
+    assert apply_filters([tender, vacancy], kind=TenderKind.TENDER) == [tender]
+    assert apply_filters([tender, vacancy], kind=TenderKind.VACANCY) == [vacancy]
+    assert apply_filters([tender, vacancy]) == [tender, vacancy]

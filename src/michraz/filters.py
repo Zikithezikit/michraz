@@ -9,7 +9,7 @@ from datetime import date, datetime, time
 from typing import Final
 
 from michraz import _dates
-from michraz.models import Tender
+from michraz.models import Tender, TenderKind
 
 NORMALIZATION_FORM: Final = "NFKC"
 
@@ -51,6 +51,7 @@ class TenderFilter:
         closing_before: Keep tenders whose deadline is strictly before this moment. A plain date means
             00:00 at the start of that day in Asia/Jerusalem.
         closing_after: Keep tenders whose deadline is at or after this moment. Dates are read as above.
+        kind: Keep only tenders of this kind. None keeps every kind.
         now: Moment used for ``open_only``. Defaults to the current time on each call.
 
     Raises:
@@ -61,6 +62,7 @@ class TenderFilter:
     open_only: bool = False
     closing_before: datetime | date | None = None
     closing_after: datetime | date | None = None
+    kind: TenderKind | None = None
     now: datetime | None = None
 
     def __post_init__(self) -> None:
@@ -71,6 +73,8 @@ class TenderFilter:
 
     def matches(self, tender: Tender) -> bool:
         """Tells whether ``tender`` meets every condition."""
+        if self.kind is not None and tender.kind != self.kind:
+            return False
         if self.keyword and not matches_keyword(tender, self.keyword):
             return False
         if self.open_only and not tender.is_open(self.now):
@@ -98,11 +102,17 @@ def apply_filters(
     open_only: bool = False,
     closing_before: datetime | date | None = None,
     closing_after: datetime | date | None = None,
+    kind: TenderKind | None = None,
     now: datetime | None = None,
 ) -> list[Tender]:
     """Filters tenders. Shorthand for ``TenderFilter(...).apply(tenders)``; see :class:`TenderFilter`."""
     return TenderFilter(
-        keyword=keyword, open_only=open_only, closing_before=closing_before, closing_after=closing_after, now=now
+        keyword=keyword,
+        open_only=open_only,
+        closing_before=closing_before,
+        closing_after=closing_after,
+        kind=kind,
+        now=now,
     ).apply(tenders)
 
 

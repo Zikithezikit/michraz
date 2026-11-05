@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urljoin, urlparse
 from michraz import _dates
 from michraz._enums import StrEnum
 from michraz.errors import SourceFormatError
-from michraz.models import RAW_EXTRA_KEY, Tender
+from michraz.models import RAW_EXTRA_KEY, Tender, TenderKind
 from michraz.sources.base import BaseSource
 
 BIDS_PATH = "/bids/"
@@ -29,6 +29,8 @@ _VOID_TAGS = frozenset({"input", "br", "img", "hr", "meta", "link"})
 _DATE = re.compile(r"\d{2}/\d{2}/\d{4}")
 _PUBLISHED_HEADER = re.compile(r"(מועד|תאריך) (פרסום|פתיחת)|התחלת")
 _DEADLINE_HEADER = re.compile(r"אחרון להגשה|סגירת")
+_VACANCY_SECTION = re.compile(r"דרושים|כוח אדם|כח אדם|משאבי אנוש|מכרזי כ\"א")
+_VACANCY_TITLE = re.compile(r"דרושים|דרוש/ה|מכרז (חיצוני|פנימי|פנים)")
 
 
 class BidsExtra(StrEnum):
@@ -86,17 +88,28 @@ MUNICIPALITIES: tuple[Municipality, ...] = (
 
 
 @dataclass(slots=True)
+class Table:
+    """One bids table: its caption, its header texts and its rows."""
+
+    caption: str
+    headers: list[str]
+    rows: list[list[_Cell]]
+
+
+@dataclass(slots=True)
 class _Cell:
     text: str = ""
     href: str | None = None
 
 
 class _TableParser(HTMLParser):
-    """Collects the rows of every ``<table class="bids">`` as ``(headers, rows)``."""
+    """Collects every ``<table class="bids">`` as a :class:`Table`."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.tables: list[tuple[list[str], list[list[_Cell]]]] = []
+        self.tables: list[Table] = []
+        self._caption = ""
+        self._in_caption = False
         self._in_table = False
         self._headers: list[str] = []
         self._rows: list[list[_Cell]] = []
@@ -114,9 +127,11 @@ class _TableParser(HTMLParser):
         elif self._hidden_tag is None and tag not in _VOID_TAGS and classes & _HIDDEN_CLASSES:
             self._hidden_tag, self._hidden_depth = tag, 1
         if tag == "table" and TABLE_CLASS in classes:
-            self._in_table, self._headers, self._rows = True, [], []
+            self._in_table, self._headers, self._rows, self._caption = True, [], [], ""
         elif not self._in_table:
             return
+        elif tag == "caption":
+            self._in_caption = True
         elif tag == "tr":
             self._row = []
         elif tag in {"td", "th"}:
@@ -125,7 +140,9 @@ class _TableParser(HTMLParser):
             self._cell.href = values.get("href")
 
     def handle_data(self, data: str) -> None:
-        if self._cell is not None and self._hidden_tag is None:
+        if self._in_caption:
+            self._caption += data
+        elif self._cell is not None and self._hidden_tag is None:
             self._cell.text += data
 
     def handle_endtag(self, tag: str) -> None:
@@ -135,7 +152,9 @@ class _TableParser(HTMLParser):
                 self._hidden_tag = None
         if not self._in_table:
             return
-        if tag in {"td", "th"} and self._cell is not None:
+        if tag == "caption":
+            self._in_caption = False
+        elif tag in {"td", "th"} and self._cell is not None:
             self._cell.text = " ".join(self._cell.text.split())
             self._row.append(self._cell)
             self._cell = None
@@ -146,12 +165,12 @@ class _TableParser(HTMLParser):
                 self._rows.append(self._row)
             self._row, self._is_header = [], False
         elif tag == "table":
-            self.tables.append((self._headers, self._rows))
+            self.tables.append(Table(" ".join(self._caption.split()), self._headers, self._rows))
             self._in_table = False
 
 
-def parse_tables(page: str) -> list[tuple[list[str], list[list[_Cell]]]]:
-    """Returns ``(headers, rows)`` for every bids table on the page."""
+def parse_tables(page: str) -> list[Table]:
+    """Returns every bids table on the page."""
     parser = _TableParser()
     parser.feed(page)
     parser.close()
@@ -183,10 +202,18 @@ def _date(text: str | None, end_of_day: bool) -> datetime | None:
     )
 
 
+def _kind(caption: str, category: str | None, title: str) -> TenderKind:
+    """Staff vacancies are recognized by the section they are listed in, or by wording in the title."""
+    if _VACANCY_SECTION.search(caption) or _VACANCY_SECTION.search(category or "") or _VACANCY_TITLE.search(title):
+        return TenderKind.VACANCY
+    return TenderKind.TENDER
+
+
 class BidsSource(BaseSource):
     """Current tenders of one municipality that runs the shared bids page.
 
-    A date-only deadline is read as the end of that day, because the page gives no hour.
+    A date-only deadline is read as the end of that day, because the page gives no hour. Staff vacancies that the
+    site lists beside its tenders get ``kind=TenderKind.VACANCY``.
 
     Args:
         municipality: The municipality to read. See :data:`MUNICIPALITIES`.
@@ -210,14 +237,14 @@ class BidsSource(BaseSource):
         """
         self.errors = []
         tables = parse_tables(self._client().get_text(self.name, self.url))
-        usable = [(headers, rows) for headers, rows in tables if _column(headers, _Header.NAME) is not None]
+        usable = [table for table in tables if _column(table.headers, _Header.NAME) is not None]
         if not usable:
             raise SourceFormatError(self.name, "no bids table with a tender name column on the page")
         seen: set[str] = set()
-        for headers, rows in usable:
-            for row in rows:
+        for table in usable:
+            for row in table.rows:
                 try:
-                    tender = self.parse(headers, row)
+                    tender = self.parse(table, row)
                 except ValueError as exc:
                     self._skip(row[0].text[:60] if row else None, exc)
                     continue
@@ -225,12 +252,13 @@ class BidsSource(BaseSource):
                     seen.add(tender.source_id)
                     yield tender
 
-    def parse(self, headers: list[str], row: list[_Cell]) -> Tender:
+    def parse(self, table: Table, row: list[_Cell]) -> Tender:
         """Converts one table row to a :class:`Tender`.
 
         Raises:
             ValueError: If the row has no title or no identifier.
         """
+        headers = table.headers
         title = _cell_text(row, _column(headers, _Header.NAME))
         if not title:
             raise ValueError("row has no title")
@@ -254,6 +282,7 @@ class BidsSource(BaseSource):
             published_at=_date(_cell_text(row, _column(headers, _PUBLISHED_HEADER)), end_of_day=False),
             deadline=_date(_cell_text(row, _column(headers, _DEADLINE_HEADER)), end_of_day=True),
             url=url,
+            kind=_kind(table.caption, _cell_text(row, _column(headers, _Header.CATEGORY)), title),
             attribution=self.attribution,
             extra={
                 BidsExtra.TYPE: _cell_text(row, _column(headers, _Header.TYPE)),

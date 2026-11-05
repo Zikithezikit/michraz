@@ -21,6 +21,7 @@ class CsvColumn(StrEnum):
 
     SOURCE = "source"
     SOURCE_ID = "source_id"
+    KIND = "kind"
     NUMBER = "number"
     TITLE = "title"
     PUBLISHER = "publisher"

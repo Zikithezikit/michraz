@@ -8,6 +8,15 @@ from datetime import datetime
 from typing import Any
 
 from michraz import _dates
+from michraz._enums import StrEnum
+
+
+class TenderKind(StrEnum):
+    """What a listing is. Some municipal sites list staff vacancies next to their tenders."""
+
+    TENDER = "tender"
+    VACANCY = "vacancy"
+
 
 RAW_EXTRA_KEY = "raw"
 """Key under which every source stores the untouched record in ``Tender.extra``."""
@@ -46,6 +55,7 @@ class Tender:
         winner: Name of the winner. None while the tender is still open.
         url: Page of the tender on the publisher's site.
         documents: Attached files.
+        kind: Whether this is a tender or a staff vacancy. Only some municipal sources can tell.
         attribution: Credit line required by the data license. Always keep it with the data.
         extra: Source-specific fields. The untouched record is under ``extra[RAW_EXTRA_KEY]`` (``"raw"``).
     """
@@ -63,6 +73,7 @@ class Tender:
     winner: str | None = None
     url: str | None = None
     documents: tuple[Document, ...] = ()
+    kind: TenderKind = TenderKind.TENDER
     extra: Mapping[str, Any] = field(default_factory=dict, compare=False, hash=False, repr=False)
 
     @property

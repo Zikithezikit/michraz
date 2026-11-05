@@ -110,8 +110,12 @@ correct and not confirmed.
 - Not covered: the 25 other sites that answered the same path with HTML but no `bids` table (for example Herzliya,
   Raanana, Holon, Rehovot, Ashkelon, Lod, Modiin, Karmiel, Tiberias, Afula) use a different layout. Jerusalem,
   Tel Aviv, Haifa, Petah Tikva, Rishon LeZion and Ashdod were not reachable the same way.
-- Several sites mix staff vacancies (`דרושים`, job ads) into the same tables, for example Beit Shemesh and Kfar Saba.
-  They come through as tenders. michraz does not tell them apart.
+- Several sites mix staff vacancies (job ads) into the same tables: Beit Shemesh, Dimona, Kfar Saba and Nof HaGalil.
+  A row is a vacancy (`kind=vacancy`) when its table caption or category says `דרושים`, `כוח אדם`, `כח אדם`,
+  `משאבי אנוש` or `מכרזי כ"א`, or its title says `דרושים`, `דרוש/ה` or `מכרז חיצוני/פנימי`. On 2026-11-05 this
+  marked 28 rows as vacancies. It is a heuristic: a vacancy under an unexpected caption is still listed as a tender.
+- Kiryat Motzkin lists 29 rows titled `ועדת מכרזים` (tender committee pages). They are not tenders and are not
+  filtered out.
 - Azor uses the same platform but its `robots.txt` disallows every path, so it is not included.
 - The other 12 sites returned an HTML page (not a rules file) for `/robots.txt`, so they state no rules.
 - `tests/fixtures/bids_<city>.html` holds the real table of each city, cut to its header and the first three rows

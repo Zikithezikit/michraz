@@ -18,6 +18,7 @@ safe to share.
 | `updated_at` | `datetime \| None` | not available | `תאריך עדכון` |
 | `winner` | `str \| None` | always None | `זוכה במכרז`, None when blank |
 | `url` | `str \| None` | `https://apps.land.gov.il/MichrazimSite/#/michraz/{id}` | `URL` |
+| `kind` | `TenderKind` | always `tender` | always `tender` |
 | `documents` | `tuple[Document, ...]` | empty (details endpoint not used yet) | links parsed from `קבצים` |
 | `attribution` | `str` | credit line, always present | credit line, always present |
 | `extra` | `Mapping[str, Any]` | see below (`RmiExtra`) | `payment_url`, `raw` (`BeerShevaExtra`) |
@@ -29,6 +30,7 @@ Rules that hold for every source:
   normalized.
 - `extra["raw"]` is the untouched source record.
 - Equality and hashing ignore `extra`.
+- `kind` is `vacancy` only for staff vacancies that municipal bids sources list next to their tenders.
 
 `Tender.key` is `(source, source_id)`. `Tender.is_open(now=None)` is true when there is no winner and the
 deadline is strictly after `now`. A tender with no known deadline counts as closed.
