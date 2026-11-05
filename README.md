@@ -7,13 +7,12 @@
 
 Israeli public tenders (מכרזים) in Python, from one place.
 
-If you want to know which tenders are open right now, you currently visit the Israel Land Authority's site, then
-each municipality's own site, and hope the national procurement datasets are not the ones that stopped updating in
-2021. michraz reads the machine-readable feeds those sites already publish and hands you the same `Tender` object
-whichever one it came from. You can search, filter, export to CSV, or run it from the terminal.
+Each publisher has its own site and its own format. michraz reads the machine-readable feeds those sites already
+offer and returns the same `Tender` object for all of them. You can search, filter, export to CSV, or use the
+command line.
 
-It currently reads Israel Land Authority land tenders and Beer Sheva municipal tenders. Adding another
-municipality takes one small class.
+It reads Israel Land Authority land tenders and Beer Sheva municipal tenders. Another municipality is one small
+class.
 
 > michraz is an unofficial client. It can lag or miss tenders and parsing can break when a source changes. Always
 > confirm deadlines and conditions on the publisher's official page before you act. Not affiliated with the Israel Land
@@ -27,7 +26,7 @@ pip install michraz
 
 Python 3.10 or newer. If you want DataFrames, install `michraz[pandas]`.
 
-## A first search
+## Quick start
 
 ```python
 from michraz import Michraz
@@ -38,8 +37,8 @@ with Michraz() as m:
         print(f"  {tender.url}")
 ```
 
-Results come back sorted by deadline, with tenders that have no known deadline at the end. Every tender carries an
-`attribution` string naming who published it, so you can credit them when you pass the data on.
+Results are sorted by deadline; tenders without one come last. Every tender has an `attribution` string. Keep it
+when you pass the data on.
 
 ![What michraz does](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/overview.png)
 
@@ -62,11 +61,11 @@ rmi     15/2023   2026-11-09 12:00  open   כפר קרע - סטאלין
 Data: Israel Land Authority (רשות מקרקעי ישראל), apps.land.gov.il
 ```
 
-Hebrew is printed in logical order and your terminal handles the right-to-left layout. The CSV file is written with
-a byte order mark, so Excel opens it with the Hebrew intact. Add `--no-cache` to skip the on-disk cache. The exit
+Hebrew is printed in logical order, so the terminal handles the right-to-left layout. The CSV has a byte order mark
+so Excel shows the Hebrew correctly. Add `--no-cache` to skip the on-disk cache. The exit
 code is 1 if a service could not be reached.
 
-## More ways to use it
+## Recipes
 
 Ask a single source, with its own filters:
 
@@ -96,16 +95,15 @@ to_dicts(tenders)  # plain dictionaries, ready for json.dumps
 to_dataframe(tenders)  # needs michraz[pandas]
 ```
 
-Source names and the keys of `tender.extra` are enums (`SourceName`, `RmiExtra`, `BeerShevaExtra`). They compare
-equal to the plain strings, so `source="rmi"` and `tender.extra["housing_units"]` work too, but the enums give you
-autocomplete and a typo fails loudly.
+Source names and the keys of `tender.extra` are enums (`SourceName`, `RmiExtra`, `BeerShevaExtra`). They equal
+the plain strings, so `source="rmi"` and `tender.extra["housing_units"]` also work.
 
 A tender is open when it has no winner and its deadline is still ahead. A deadline equal to the current moment counts
 as closed, and so does a tender with no deadline at all.
 
-When a record cannot be parsed, michraz skips it, logs a warning, and lists it in `m.last_errors`, so one bad row
-never costs you the rest. If a service is down you get a `SourceUnavailableError`, and if it answers in a shape
-michraz does not recognize you get a `SourceFormatError`. Both inherit from `MichrazError`.
+A record that cannot be parsed is skipped, logged, and listed in `m.last_errors`. An unreachable service raises
+`SourceUnavailableError`, and an unexpected response shape raises `SourceFormatError`. Both inherit from
+`MichrazError`.
 
 The [examples](https://github.com/Zikithezikit/michraz/tree/main/examples) folder has runnable scripts. One of them,
 `custom_source.py`, adds a made-up municipality and runs without a network connection.
@@ -122,14 +120,13 @@ The fields of `Tender` and which source fills which are listed in
 
 ## What happens during a search
 
-Every request goes through one client that waits between calls, remembers answers on disk and says honestly who it
-is.
+Every request goes through one client that rate-limits, caches on disk and identifies itself.
 
 ![Request flow](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/request_flow.png)
 
-In practice that means michraz sends `michraz/<version> (+https://github.com/Zikithezikit/michraz)` as its
-User-Agent, waits at least a second between requests to the same host, keeps responses for an hour in
-`~/.cache/michraz`, retries at most twice on 429 and 5xx errors, and respects `Retry-After`. You can tune it:
+It sends `michraz/<version> (+https://github.com/Zikithezikit/michraz)` as its User-Agent, waits at least a second
+between requests to the same host, caches responses for an hour in `~/.cache/michraz`, and retries at most twice on
+429 and 5xx, honoring `Retry-After`. Tuning:
 
 ```python
 from datetime import timedelta
@@ -146,17 +143,14 @@ Michraz(min_interval=3.0)  # slower; values below 0.5 are rejected
 | `rmi` | Open land tenders of the Israel Land Authority | live | Israel Land Authority (רשות מקרקעי ישראל), apps.land.gov.il |
 | `beersheva` | Beer Sheva municipal tenders, open and past, from data.gov.il | refreshed weekly | Beer Sheva Municipality (עיריית באר שבע), via data.gov.il, license: Other (Open) |
 
-Please keep the credit line when you republish the data. The CSV has it in its own column and the command line prints
-it under the table. How each source was checked, and what is still unknown, is written down in
+Keep the credit line when you republish the data. The CSV has a column for it and the CLI prints it under the table. How each source was checked, and what is still unknown, is written down in
 [docs/sources.md](https://github.com/Zikithezikit/michraz/blob/main/docs/sources.md).
 
 ## Known limitations
 
-This is a first release, so some things are rough.
-
 The Israel Land Authority publishes region, tender type, purpose and status as numbers. The only public label table
-I found did not match the live data, so michraz gives you the raw codes in `tender.extra` (`RmiExtra.REGION_CODE` and friends) instead of guessing.
-Settlement names are included and checked against the authority's own list.
+I found did not match the live data, so `tender.extra` holds the raw codes (`RmiExtra.REGION_CODE` and friends). Settlement names come from the
+authority's own list.
 
 Of the filters the RMI search accepts, only settlement and neighborhood actually work on the server. michraz
 downloads the list and applies the others (tender number, region, type, purpose, status) itself.
@@ -170,7 +164,7 @@ Beer Sheva tender numbers are sometimes blank or repeated, so those tenders are 
 item id instead.
 
 Keyword search is a plain substring match after Unicode normalization. It does not do stemming, so `גינון` will not
-find `גינה`. I also did not review the terms of use of the source sites.
+find `גינה`. The sources' terms of use have not been reviewed.
 
 ## Development
 
