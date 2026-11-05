@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -12,6 +13,9 @@ from michraz import _dates
 from michraz.models import Tender, TenderKind
 
 NORMALIZATION_FORM: Final = "NFKC"
+HEBREW_PREFIXES: Final = "והכלמבש"
+"""One-letter words that attach to the front of a Hebrew word: and, the, as, to, from, in, that."""
+MAX_PREFIX_LETTERS: Final = 3
 
 _EARLIEST = datetime.min.replace(tzinfo=_dates.JERUSALEM)
 
@@ -21,14 +25,23 @@ def normalize(text: str) -> str:
     return unicodedata.normalize(NORMALIZATION_FORM, text).casefold()
 
 
-def matches_keyword(tender: Tender, keyword: str) -> bool:
+def matches_keyword(tender: Tender, keyword: str, whole_word: bool = False) -> bool:
     """Tells whether ``keyword`` occurs in the title or the number of ``tender``.
 
-    The match is a case-insensitive substring match on NFKC-normalized text. There is no stemming.
+    The match is case-insensitive on NFKC-normalized text. There is no stemming.
+
+    Args:
+        tender: The tender to look at.
+        keyword: Text to look for.
+        whole_word: Match whole words only. A Hebrew word may carry up to three prefix letters (``ו ה כ ל מ ב ש``),
+            so ``פרחים`` also matches ``הפרחים`` and ``לפרחים`` but ``נוי`` does not match ``בינוי`` or ``פינוי``.
     """
     needle = normalize(keyword.strip())
     haystack = normalize(f"{tender.title}\n{tender.number or ''}")
-    return needle in haystack
+    if not whole_word:
+        return needle in haystack
+    prefix = f"[{HEBREW_PREFIXES}]{{0,{MAX_PREFIX_LETTERS}}}"
+    return re.search(rf"(?<!\w){prefix}{re.escape(needle)}(?!\w)", haystack) is not None
 
 
 def _bound(value: datetime | date | None) -> datetime | None:
@@ -47,6 +60,7 @@ class TenderFilter:
 
     Attributes:
         keyword: Keep tenders whose title or number contains this text.
+        whole_word: Match ``keyword`` as a whole word. See :func:`matches_keyword`.
         open_only: Keep tenders for which :meth:`Tender.is_open` is true.
         closing_before: Keep tenders whose deadline is strictly before this moment. A plain date means
             00:00 at the start of that day in Asia/Jerusalem.
@@ -59,6 +73,7 @@ class TenderFilter:
     """
 
     keyword: str | None = None
+    whole_word: bool = False
     open_only: bool = False
     closing_before: datetime | date | None = None
     closing_after: datetime | date | None = None
@@ -75,7 +90,7 @@ class TenderFilter:
         """Tells whether ``tender`` meets every condition."""
         if self.kind is not None and tender.kind != self.kind:
             return False
-        if self.keyword and not matches_keyword(tender, self.keyword):
+        if self.keyword and not matches_keyword(tender, self.keyword, self.whole_word):
             return False
         if self.open_only and not tender.is_open(self.now):
             return False
@@ -99,6 +114,7 @@ def apply_filters(
     tenders: Iterable[Tender],
     *,
     keyword: str | None = None,
+    whole_word: bool = False,
     open_only: bool = False,
     closing_before: datetime | date | None = None,
     closing_after: datetime | date | None = None,
@@ -108,6 +124,7 @@ def apply_filters(
     """Filters tenders. Shorthand for ``TenderFilter(...).apply(tenders)``; see :class:`TenderFilter`."""
     return TenderFilter(
         keyword=keyword,
+        whole_word=whole_word,
         open_only=open_only,
         closing_before=closing_before,
         closing_after=closing_after,

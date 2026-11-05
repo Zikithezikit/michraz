@@ -2,6 +2,12 @@
 
 All notable changes are listed here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased
+
+### Added
+- `whole_word` option for `Michraz.search` and `--whole-word` for the CLI: match the keyword as a whole word, so `נוי`
+  does not match `בינוי` or `פינוי`. Hebrew prefix letters (`ו ה כ ל מ ב ש`) are allowed in front of the word.
+
 ## 0.2.0 (2026-11-05)
 
 ### Added

@@ -66,6 +66,7 @@ class Michraz(Closeable):
         self,
         keyword: str | None = None,
         open_only: bool = False,
+        whole_word: bool = False,
         source: str | None = None,
         closing_before: datetime | date | None = None,
         closing_after: datetime | date | None = None,
@@ -75,6 +76,8 @@ class Michraz(Closeable):
 
         Args:
             keyword: Keep tenders whose title or number contains this text (case-insensitive, NFKC).
+            whole_word: Match ``keyword`` as a whole word, so ``נוי`` does not match ``בינוי``. Hebrew prefix letters
+                such as ``ה`` and ``ל`` are allowed in front of the word.
             open_only: Keep only tenders that can still receive submissions.
             source: Search only the source with this name.
             closing_before: Keep tenders whose deadline is before this moment. A date means the start of
@@ -94,6 +97,7 @@ class Michraz(Closeable):
         """
         criteria = TenderFilter(
             keyword=keyword,
+            whole_word=whole_word,
             open_only=open_only,
             closing_before=closing_before,
             closing_after=closing_after,

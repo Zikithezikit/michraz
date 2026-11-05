@@ -115,3 +115,29 @@ def test_kind_filter_keeps_only_that_kind():
     assert apply_filters([tender, vacancy], kind=TenderKind.TENDER) == [tender]
     assert apply_filters([tender, vacancy], kind=TenderKind.VACANCY) == [vacancy]
     assert apply_filters([tender, vacancy]) == [tender, vacancy]
+
+
+@pytest.mark.parametrize(
+    ("title", "keyword", "expected"),
+    [
+        ("מכרז לפרחים", "פרחים", True),  # to the flowers
+        ("רובע הפרחים", "פרחים", True),  # the flowers
+        ("הפרחים והצמחים", "צמחים", True),  # and-the plants
+        ("בינוי ופיתוח", "נוי", False),
+        ("פינוי פסולת", "נוי", False),
+        ("נוירו", "נוי", False),
+        ("מאגר היועצים", "עצים", False),
+        ("גיזום עצים", "עצים", True),
+        ("Gardening services", "garden", False),
+        ("Garden services", "GARDEN", True),
+        ("שירותי גינון ונוי", "נוי", True),
+        ("מכרז 12/2026", "12/2026", True),
+    ],
+)
+def test_whole_word_keyword(title, keyword, expected):
+    assert matches_keyword(make_tender(title=title), keyword, whole_word=True) is expected
+
+
+def test_substring_match_is_still_the_default():
+    assert matches_keyword(make_tender(title="בינוי ופיתוח"), "נוי")
+    assert apply_filters([make_tender(title="בינוי")], keyword="נוי", whole_word=True) == []

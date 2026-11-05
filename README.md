@@ -41,7 +41,9 @@ to_csv(tenders, "tenders.csv")
 ```
 
 Results are sorted by deadline. Filter by `source`, `closing_before` and `closing_after` (dates or aware
-datetimes) too. Each tender has an `attribution` string. Keep it when you republish the data.
+datetimes) too. Keyword search matches text inside words. Pass `whole_word=True` (or `--whole-word`) to match whole words only, so
+`נוי` finds `גינון ונוי` but not `בינוי`. Hebrew prefix letters like `ה` and `ל` are allowed in front of the word.
+Each tender has an `attribution` string. Keep it when you republish the data.
 
 Some city sites list staff vacancies next to their tenders. They are hidden by default. Pass `kind=None` to see both,
 or `--kind all` on the command line.
