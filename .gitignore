@@ -5,3 +5,5 @@ build/
 dist/
 .coverage
 *.csv
+AGENTS.md
+CLAUDE.md

@@ -14,7 +14,7 @@ One focused change per PR against `main`. Title in Conventional Commits style
 
 <!-- Separate what you checked (and how) from what you assume. -->
 
-## Checklist (from AGENTS.md)
+## Checklist
 
 - [ ] No live network in tests; fixtures not regenerated from the code under test
 - [ ] Rate limit, User-Agent and cache untouched (or n.a.)

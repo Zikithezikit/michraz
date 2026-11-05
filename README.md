@@ -5,181 +5,81 @@
 [![CI](https://github.com/Zikithezikit/michraz/actions/workflows/ci.yml/badge.svg)](https://github.com/Zikithezikit/michraz/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Zikithezikit/michraz/blob/main/LICENSE)
 
-Israeli public tenders (מכרזים) in Python, from one place.
+Israeli public tenders (מכרזים) in Python. One `Tender` object, whichever site it came from.
 
-Each publisher has its own site and its own format. michraz reads the machine-readable feeds those sites already
-offer and returns the same `Tender` object for all of them. You can search, filter, export to CSV, or use the
-command line.
+Sources today: Israel Land Authority land tenders and Beer Sheva municipal tenders.
 
-It reads Israel Land Authority land tenders and Beer Sheva municipal tenders. Another municipality is one small
-class.
+> Unofficial client. It can lag or miss tenders, and parsing can break when a source changes. Confirm deadlines on
+> the publisher's page before you act. Not affiliated with the Israel Land Authority or any municipality.
 
-> michraz is an unofficial client. It can lag or miss tenders and parsing can break when a source changes. Always
-> confirm deadlines and conditions on the publisher's official page before you act. Not affiliated with the Israel Land
-> Authority or any municipality.
+![What michraz does](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/overview.png)
 
 ## Install
 
 ```bash
-pip install michraz
+pip install michraz            # Python 3.10+
+pip install "michraz[pandas]"  # optional, for DataFrames
 ```
 
-Python 3.10 or newer. If you want DataFrames, install `michraz[pandas]`.
-
-## Quick start
+## Use it
 
 ```python
-from michraz import Michraz
+from michraz import Michraz, to_csv
 
 with Michraz() as m:
-    for tender in m.search(keyword="גינון", open_only=True):
-        print(f"{tender.deadline:%Y-%m-%d}  {tender.title}")
-        print(f"  {tender.url}")
+    tenders = m.search(keyword="גינון", open_only=True)
+
+for t in tenders:
+    print(f"{t.deadline:%Y-%m-%d}  {t.title}  {t.url}")
+
+to_csv(tenders, "tenders.csv")
 ```
 
-Results are sorted by deadline; tenders without one come last. Every tender has an `attribution` string. Keep it
-when you pass the data on.
+Results are sorted by deadline. Filter by `source`, `closing_before` and `closing_after` (dates or aware
+datetimes) too. Each tender has an `attribution` string. Keep it when you republish the data.
 
-![What michraz does](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/overview.png)
-
-## From the terminal
+Or from the terminal:
 
 ```bash
 michraz search --open --source rmi
 michraz search --keyword גינון --csv gardening.csv
-michraz search --json | jq '.[0]'
-michraz sources
 ```
 
-```text
-SOURCE  NUMBER    DEADLINE          STATE  TITLE
-rmi     323/2021  2026-11-09 12:00  open   אשקלון - אגמים
-rmi     389/2021  2026-11-09 12:00  open   רמלה - איצטדיון
-rmi     15/2023   2026-11-09 12:00  open   כפר קרע - סטאלין
+![Terminal output](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/cli.png)
 
-441 tenders
-Data: Israel Land Authority (רשות מקרקעי ישראל), apps.land.gov.il
-```
+A record that fails to parse is skipped and listed in `m.last_errors`. An unreachable source raises
+`SourceUnavailableError`. More scripts are in [examples](https://github.com/Zikithezikit/michraz/tree/main/examples).
 
-Hebrew is printed in logical order, so the terminal handles the right-to-left layout. The CSV has a byte order mark
-so Excel shows the Hebrew correctly. Add `--no-cache` to skip the on-disk cache. The exit
-code is 1 if a service could not be reached.
+## Add a source
 
-## Recipes
-
-Ask a single source, with its own filters:
-
-```python
-from michraz import RmiExtra, RmiSource
-
-with RmiSource() as rmi:
-    for tender in rmi.search(settlement_code=3750):
-        print(tender.number, tender.title, tender.extra[RmiExtra.HOUSING_UNITS])
-```
-
-Tenders closing in a window (plain dates mean midnight in Israel):
-
-```python
-from datetime import date
-
-m.search(closing_after=date(2026, 12, 1), closing_before=date(2027, 1, 1))
-```
-
-Save the results:
-
-```python
-from michraz import to_csv, to_dicts, to_dataframe
-
-to_csv(tenders, "tenders.csv")
-to_dicts(tenders)  # plain dictionaries, ready for json.dumps
-to_dataframe(tenders)  # needs michraz[pandas]
-```
-
-Source names and the keys of `tender.extra` are enums (`SourceName`, `RmiExtra`, `BeerShevaExtra`). They equal
-the plain strings, so `source="rmi"` and `tender.extra["housing_units"]` also work.
-
-A tender is open when it has no winner and its deadline is still ahead. A deadline equal to the current moment counts
-as closed, and so does a tender with no deadline at all.
-
-A record that cannot be parsed is skipped, logged, and listed in `m.last_errors`. An unreachable service raises
-`SourceUnavailableError`, and an unexpected response shape raises `SourceFormatError`. Both inherit from
-`MichrazError`.
-
-The [examples](https://github.com/Zikithezikit/michraz/tree/main/examples) folder has runnable scripts. One of them,
-`custom_source.py`, adds a made-up municipality and runs without a network connection.
-
-## Adding a source
-
-A source is any object with a `name`, a `description`, an `attribution`, an `errors` list and a `fetch()` method that
-yields `Tender` objects. Pass it to `Michraz([MySource()])` and it takes part in searches like the built-in ones.
+Write a class with `name`, `description`, `attribution`, `errors` and a `fetch()` that yields `Tender`s, then pass
+it to `Michraz([MySource()])`.
 
 ![Classes](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/classes.png)
 
-The fields of `Tender` and which source fills which are listed in
-[docs/model.md](https://github.com/Zikithezikit/michraz/blob/main/docs/model.md).
+Fields are documented in [docs/model.md](https://github.com/Zikithezikit/michraz/blob/main/docs/model.md), and how
+each source was checked in [docs/sources.md](https://github.com/Zikithezikit/michraz/blob/main/docs/sources.md).
 
-## What happens during a search
-
-Every request goes through one client that rate-limits, caches on disk and identifies itself.
+## Polite by default
 
 ![Request flow](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/request_flow.png)
 
-It sends `michraz/<version> (+https://github.com/Zikithezikit/michraz)` as its User-Agent, waits at least a second
-between requests to the same host, caches responses for an hour in `~/.cache/michraz`, and retries at most twice on
-429 and 5xx, honoring `Retry-After`. Tuning:
+Honest User-Agent, one request per second per host, one-hour disk cache, at most two retries. Tune it with
+`Michraz(cache_dir=None, cache_ttl=..., min_interval=...)`.
 
-```python
-from datetime import timedelta
+## Limitations
 
-Michraz(cache_dir=None)  # no cache
-Michraz(cache_ttl=timedelta(minutes=10))  # shorter cache
-Michraz(min_interval=3.0)  # slower; values below 0.5 are rejected
-```
-
-## Sources
-
-| Source | What it covers | How fresh | Credit line |
-|--------|----------------|-----------|-------------|
-| `rmi` | Open land tenders of the Israel Land Authority | live | Israel Land Authority (רשות מקרקעי ישראל), apps.land.gov.il |
-| `beersheva` | Beer Sheva municipal tenders, open and past, from data.gov.il | refreshed weekly | Beer Sheva Municipality (עיריית באר שבע), via data.gov.il, license: Other (Open) |
-
-Keep the credit line when you republish the data. The CSV has a column for it and the CLI prints it under the table. How each source was checked, and what is still unknown, is written down in
-[docs/sources.md](https://github.com/Zikithezikit/michraz/blob/main/docs/sources.md).
-
-## Known limitations
-
-The Israel Land Authority publishes region, tender type, purpose and status as numbers. The only public label table
-I found did not match the live data, so `tender.extra` holds the raw codes (`RmiExtra.REGION_CODE` and friends). Settlement names come from the
-authority's own list.
-
-Of the filters the RMI search accepts, only settlement and neighborhood actually work on the server. michraz
-downloads the list and applies the others (tender number, region, type, purpose, status) itself.
-
-The link in `tender.url` for RMI tenders follows the site's own route definition, but I have not opened it in a
-browser to confirm it lands on the right tender. RMI tender details and attached documents are not fetched yet, so
-`documents` is empty for those. Two fields, `khal_yaad_rashi` and `mekuvan`, are passed through as the API sends them
-because their meaning is not documented.
-
-Beer Sheva tender numbers are sometimes blank or repeated, so those tenders are identified by the municipality's own
-item id instead.
-
-Keyword search is a plain substring match after Unicode normalization. It does not do stemming, so `גינון` will not
-find `גינה`. The sources' terms of use have not been reviewed.
+- RMI region, type, purpose and status are raw numeric codes in `tender.extra`. No verified label table exists.
+- RMI tender details and documents are not fetched yet.
+- Keyword search is a Unicode-normalized substring match. No stemming.
 
 ## Development
 
 ```bash
-make venv
-make check         # ruff, mypy --strict and pytest, the same as CI
-make cov           # coverage report
-pytest -m live     # calls each real service once; manual only
-make diagrams      # redraw the pictures in this README (needs Graphviz)
+make venv && make check
 ```
 
-The test suite never touches the network. It runs against recorded responses, and a guard fails any test that opens
-a socket. See [CONTRIBUTING.md](https://github.com/Zikithezikit/michraz/blob/main/CONTRIBUTING.md) before opening a
-pull request.
+Tests run against recorded responses and never touch the network. See
+[CONTRIBUTING.md](https://github.com/Zikithezikit/michraz/blob/main/CONTRIBUTING.md).
 
-## License
-
-MIT. The data belongs to the people who publish it and comes with their licenses.
+MIT licensed. The data belongs to its publishers and carries their licenses.

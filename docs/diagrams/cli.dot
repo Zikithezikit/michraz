@@ -1,0 +1,16 @@
+digraph cli {
+  bgcolor="white"; pad=0.3;
+  node [shape=plain, fontname="DejaVu Sans Mono", fontsize=11];
+  term [label=<
+    <table border="0" cellborder="0" cellspacing="0" cellpadding="7" bgcolor="#0f172a" style="rounded">
+      <tr><td align="left" colspan="5"><font color="#38bdf8">$ michraz search --open --source rmi</font></td></tr>
+      <tr><td colspan="5" height="6"></td></tr>
+      <tr><td align="left"><font color="#94a3b8">SOURCE</font></td><td align="left"><font color="#94a3b8">NUMBER</font></td><td align="left"><font color="#94a3b8">DEADLINE</font></td><td align="left"><font color="#94a3b8">STATE</font></td><td align="left"><font color="#94a3b8">TITLE</font></td></tr>
+      <tr><td align="left"><font color="#e2e8f0">rmi</font></td><td align="left"><font color="#e2e8f0">323/2021</font></td><td align="left"><font color="#e2e8f0">2026-11-09 12:00</font></td><td align="left"><font color="#4ade80">open</font></td><td align="left"><font color="#e2e8f0">אשקלון - אגמים</font></td></tr>
+      <tr><td align="left"><font color="#e2e8f0">rmi</font></td><td align="left"><font color="#e2e8f0">389/2021</font></td><td align="left"><font color="#e2e8f0">2026-11-09 12:00</font></td><td align="left"><font color="#4ade80">open</font></td><td align="left"><font color="#e2e8f0">רמלה - איצטדיון</font></td></tr>
+      <tr><td align="left"><font color="#e2e8f0">rmi</font></td><td align="left"><font color="#e2e8f0">15/2023</font></td><td align="left"><font color="#e2e8f0">2026-11-09 12:00</font></td><td align="left"><font color="#4ade80">open</font></td><td align="left"><font color="#e2e8f0">כפר קרע - סטאלין</font></td></tr>
+      <tr><td colspan="5" height="6"></td></tr>
+      <tr><td align="left" colspan="5"><font color="#e2e8f0">441 tenders</font></td></tr>
+      <tr><td align="left" colspan="5"><font color="#64748b">Data: Israel Land Authority (רשות מקרקעי ישראל), apps.land.gov.il</font></td></tr>
+    </table>>];
+}
