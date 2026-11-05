@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from datetime import datetime, timedelta
-from typing import Protocol, runtime_checkable
+from typing import ClassVar, Generic, Protocol, TypeVar, runtime_checkable
 
 from michraz._closeable import Closeable
 from michraz._enums import StrEnum
@@ -16,13 +16,30 @@ from michraz.models import Tender
 
 logger = logging.getLogger(__name__)
 
+RecordT = TypeVar("RecordT")
+
+PARSE_ERRORS = (KeyError, TypeError, ValueError, AttributeError)
+"""What :meth:`BaseSource.parse` may raise for a record it cannot read. Such a record is skipped."""
+
 
 class SourceName(StrEnum):
-    """Names of the built-in sources, as they appear in ``Tender.source`` and ``--source``."""
+    """Names of the built-in sources, as they appear in ``Tender.source`` and ``--source``, in search order."""
 
     RMI = "rmi"
     BEERSHEVA = "beersheva"
     GOV = "gov"
+    AKKO = "akko"
+    ARAD = "arad"
+    BETSHEMESH = "betshemesh"
+    DIMONA = "dimona"
+    KFAR_SABA = "kfar-saba"
+    KIRYAT_MOTZKIN = "kiryat-motzkin"
+    NESHER = "nesher"
+    NETIVOT = "netivot"
+    NOF_HAGALIL = "nof-hagalil"
+    SAVYON = "savyon"
+    TAMRA = "tamra"
+    YAVNE = "yavne"
 
 
 @runtime_checkable
@@ -38,9 +55,15 @@ class Source(Protocol):
         errors: Records skipped during the last :meth:`fetch`, one message each.
     """
 
-    name: str
-    description: str
-    attribution: str
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def description(self) -> str: ...
+
+    @property
+    def attribution(self) -> str: ...
+
     errors: list[str]
 
     def fetch(self) -> Iterator[Tender]:
@@ -48,11 +71,13 @@ class Source(Protocol):
         ...
 
 
-class BaseSource(Closeable, ABC):
-    """Shared plumbing for sources that read JSON over HTTP.
+class BaseSource(Closeable, ABC, Generic[RecordT]):
+    """Template for a source: subclasses say how to read records and how to turn one into a tender.
 
-    A subclass sets ``name``, ``description`` and ``attribution`` and implements ``fetch``. Standalone use
-    works without any setup: the source builds its own polite client on first use. Inside
+    :meth:`fetch` is the same for every source. It reads :meth:`records`, converts each one with :meth:`parse`,
+    skips and reports records that cannot be parsed, and drops repeated tenders. A subclass sets the class
+    attributes ``name``, ``description`` and ``attribution`` and implements :meth:`records` and :meth:`parse`.
+    Standalone use works without any setup: the source builds its own polite client on first use. Inside
     :class:`michraz.Michraz` the facade's client is shared instead.
 
     Args:
@@ -61,9 +86,9 @@ class BaseSource(Closeable, ABC):
         min_interval: Minimum seconds between requests to the same host.
     """
 
-    name: str
-    description: str
-    attribution: str
+    name: ClassVar[str]
+    description: ClassVar[str]
+    attribution: ClassVar[str]
 
     def __init__(
         self,
@@ -98,8 +123,38 @@ class BaseSource(Closeable, ABC):
         logger.warning(message)
 
     @abstractmethod
+    def records(self) -> Iterator[RecordT]:
+        """Reads the upstream data and yields its records one by one.
+
+        Raises:
+            SourceUnavailableError: If the service cannot be reached.
+            SourceFormatError: If the response does not have the expected shape.
+        """
+
+    @abstractmethod
+    def parse(self, record: RecordT) -> Tender:
+        """Converts one record to a :class:`Tender`. May raise any of :data:`PARSE_ERRORS`."""
+
+    def record_id(self, record: RecordT) -> object:
+        """Identifies a record in the message reported when it is skipped."""
+        return None
+
     def fetch(self) -> Iterator[Tender]:
         """Yields every tender the source offers. A bad record is skipped and reported in ``errors``."""
+        return self._tenders(self.records())
+
+    def _tenders(self, records: Iterable[RecordT]) -> Iterator[Tender]:
+        self.errors = []
+        seen: set[tuple[str, str]] = set()
+        for record in records:
+            try:
+                tender = self.parse(record)
+            except PARSE_ERRORS as exc:
+                self._skip(self.record_id(record), exc)
+                continue
+            if tender.key not in seen:
+                seen.add(tender.key)
+                yield tender
 
     def last_fetched(self) -> datetime | None:
         """Returns when this source last fetched data into the cache, or None if it never did."""

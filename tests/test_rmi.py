@@ -77,8 +77,8 @@ def test_khal_yaad_rashi_is_exposed_raw_not_as_a_bid(respx_mock, source, rmi_rec
 
 
 def test_unknown_settlement_falls_back_to_neighborhood_then_number(respx_mock, source, rmi_records):
-    odd = dict(rmi_records[0], KodYeshuv=999999)
-    bare = dict(rmi_records[0], KodYeshuv=999999, Shchuna=None)
+    odd = dict(rmi_records[0], MichrazID=9001, KodYeshuv=999999)
+    bare = dict(rmi_records[0], MichrazID=9002, KodYeshuv=999999, Shchuna=None)
     serve(respx_mock, [odd, bare])
     a, b = source.search()
     assert a.title == "גבעת טל" and a.extra["settlement"] is None
@@ -172,5 +172,5 @@ def test_last_fetched_reads_the_cache(respx_mock, rmi_records, tmp_path):
     serve(respx_mock, rmi_records)
     with RmiSource(cache_dir=tmp_path) as src:
         assert src.last_fetched() is None
-        src.fetch()
+        list(src.fetch())
         assert src.last_fetched() is not None

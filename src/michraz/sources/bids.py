@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, time
 from html.parser import HTMLParser
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import parse_qs, urljoin, urlparse
 
 from michraz import _dates
@@ -50,54 +50,17 @@ class _Header(StrEnum):
     CATEGORY = "קטגוריה"
 
 
-@dataclass(frozen=True, slots=True)
-class Municipality:
-    """A municipality that runs the bids page.
-
-    Attributes:
-        key: Short unique name, used as ``Tender.source`` and for ``--source``. The site's subdomain.
-        publisher: Name of the municipality in Hebrew.
-        domain: Host of the municipal site.
-        path: Path of the bids page. Some sites put a language in front of it.
-    """
-
-    key: str
-    publisher: str
-    domain: str
-    path: str = BIDS_PATH
-
-
-def _city(key: str, publisher: str, path: str = BIDS_PATH) -> Municipality:
-    return Municipality(key=key, publisher=publisher, domain=f"www.{key}.muni.il", path=path)
-
-
-MUNICIPALITIES: tuple[Municipality, ...] = (
-    _city("akko", "עיריית עכו", "/he/bids/"),
-    _city("arad", "עיריית ערד"),
-    _city("betshemesh", "עיריית בית שמש"),
-    _city("dimona", "עיריית דימונה"),
-    _city("kfar-saba", "עיריית כפר סבא"),
-    _city("kiryat-motzkin", "עיריית קריית מוצקין"),
-    _city("nesher", "עיריית נשר"),
-    _city("netivot", "עיריית נתיבות"),
-    _city("nof-hagalil", "עיריית נוף הגליל"),
-    _city("savyon", "המועצה המקומית סביון"),
-    _city("tamra", "עיריית טמרה", "/ar/bids/"),
-    _city("yavne", "עיריית יבנה"),
-)
-
-
 @dataclass(slots=True)
 class Table:
     """One bids table: its caption, its header texts and its rows."""
 
     caption: str
     headers: list[str]
-    rows: list[list[_Cell]]
+    rows: list[list[Cell]]
 
 
 @dataclass(slots=True)
-class _Cell:
+class Cell:
     text: str = ""
     href: str | None = None
 
@@ -112,9 +75,9 @@ class _TableParser(HTMLParser):
         self._in_caption = False
         self._in_table = False
         self._headers: list[str] = []
-        self._rows: list[list[_Cell]] = []
-        self._row: list[_Cell] = []
-        self._cell: _Cell | None = None
+        self._rows: list[list[Cell]] = []
+        self._row: list[Cell] = []
+        self._cell: Cell | None = None
         self._is_header = False
         self._hidden_tag: str | None = None
         self._hidden_depth = 0
@@ -135,7 +98,7 @@ class _TableParser(HTMLParser):
         elif tag == "tr":
             self._row = []
         elif tag in {"td", "th"}:
-            self._cell, self._is_header = _Cell(), tag == "th"
+            self._cell, self._is_header = Cell(), tag == "th"
         elif tag == "a" and self._cell is not None and self._cell.href is None:
             self._cell.href = values.get("href")
 
@@ -185,7 +148,7 @@ def _column(headers: list[str], wanted: str | re.Pattern[str]) -> int | None:
     return None
 
 
-def _cell_text(row: list[_Cell], index: int | None) -> str | None:
+def _cell_text(row: list[Cell], index: int | None) -> str | None:
     if index is None or index >= len(row):
         return None
     return row[index].text or None
@@ -209,55 +172,70 @@ def _kind(caption: str, category: str | None, title: str) -> TenderKind:
     return TenderKind.TENDER
 
 
-class BidsSource(BaseSource):
-    """Current tenders of one municipality that runs the shared bids page.
+class BidsSource(BaseSource[tuple[Table, list[Cell]]]):
+    """Base class for a municipality that runs the shared bids page.
 
-    A date-only deadline is read as the end of that day, because the page gives no hour. Staff vacancies that the
-    site lists beside its tenders get ``kind=TenderKind.VACANCY``.
+    A subclass names the municipality and where its page lives, and nothing else::
 
-    Args:
-        municipality: The municipality to read. See :data:`MUNICIPALITIES`.
-        **settings: ``cache_dir``, ``cache_ttl`` and ``min_interval``, as for :class:`BaseSource`.
+        class KfarSabaSource(BidsSource):
+            name = SourceName.KFAR_SABA
+            publisher = "עיריית כפר סבא"
+            domain = "www.kfar-saba.muni.il"
+
+    ``description``, ``attribution`` and ``url`` are derived from these. A date-only deadline is read as the end
+    of that day, because the page gives no hour. Staff vacancies that the site lists beside its tenders get
+    ``kind=TenderKind.VACANCY``.
+
+    Attributes:
+        publisher: Name of the municipality in Hebrew.
+        domain: Host of the municipal site.
+        path: Path of the bids page. Some sites put a language in front of it.
+        url: Full address of the bids page.
     """
 
-    def __init__(self, municipality: Municipality, **settings: Any) -> None:
-        super().__init__(**settings)
-        self.municipality = municipality
-        self.name = municipality.key
-        self.description = f"{municipality.publisher} tenders ({municipality.domain})"
-        self.attribution = f"{municipality.publisher}, {municipality.domain}"
-        self.url = f"https://{municipality.domain}{municipality.path}"
+    publisher: ClassVar[str]
+    domain: ClassVar[str]
+    path: ClassVar[str] = BIDS_PATH
+    url: ClassVar[str]
 
-    def fetch(self) -> Iterator[Tender]:
-        """Yields every tender in the tables of the bids page.
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if "domain" in cls.__dict__:
+            cls.description = f"{cls.publisher} tenders ({cls.domain})"
+            cls.attribution = f"{cls.publisher}, {cls.domain}"
+            cls.url = f"https://{cls.domain}{cls.path}"
+
+    def __init__(self, **settings: Any) -> None:
+        if not hasattr(type(self), "url"):
+            raise TypeError("BidsSource is a base class: subclass it and set name, publisher and domain")
+        super().__init__(**settings)
+
+    def records(self) -> Iterator[tuple[Table, list[Cell]]]:
+        """Yields ``(table, row)`` for every row of every table that has a tender name column.
 
         Raises:
             SourceUnavailableError: If the site cannot be reached.
             SourceFormatError: If the page has no bids table.
         """
-        self.errors = []
         tables = parse_tables(self._client().get_text(self.name, self.url))
         usable = [table for table in tables if _column(table.headers, _Header.NAME) is not None]
         if not usable:
             raise SourceFormatError(self.name, "no bids table with a tender name column on the page")
-        seen: set[str] = set()
         for table in usable:
             for row in table.rows:
-                try:
-                    tender = self.parse(table, row)
-                except ValueError as exc:
-                    self._skip(row[0].text[:60] if row else None, exc)
-                    continue
-                if tender.source_id not in seen:
-                    seen.add(tender.source_id)
-                    yield tender
+                yield table, row
 
-    def parse(self, table: Table, row: list[_Cell]) -> Tender:
+    def record_id(self, record: tuple[Table, list[Cell]]) -> object:
+        _, row = record
+        return row[0].text[:60] if row else None
+
+    def parse(self, record: tuple[Table, list[Cell]]) -> Tender:
         """Converts one table row to a :class:`Tender`.
 
         Raises:
             ValueError: If the row has no title or no identifier.
         """
+        table, row = record
         headers = table.headers
         title = _cell_text(row, _column(headers, _Header.NAME))
         if not title:
@@ -267,7 +245,7 @@ class BidsSource(BaseSource):
         name_index = _column(headers, _Header.NAME)
         name_link = row[name_index].href if name_index is not None and name_index < len(row) else None
         href = name_link or link
-        url = urljoin(f"https://{self.municipality.domain}/", href) if href else None
+        url = urljoin(f"https://{self.domain}/", href) if href else None
         ids = parse_qs(urlparse(url or "").query).get(ITEM_ID_PARAMETER)
         source_id = ids[0] if ids else number
         if not source_id:
@@ -278,7 +256,7 @@ class BidsSource(BaseSource):
             source_id=source_id,
             title=title,
             number=number,
-            publisher=self.municipality.publisher,
+            publisher=self.publisher,
             published_at=_date(_cell_text(row, _column(headers, _PUBLISHED_HEADER)), end_of_day=False),
             deadline=_date(_cell_text(row, _column(headers, _DEADLINE_HEADER)), end_of_day=True),
             url=url,
@@ -290,8 +268,3 @@ class BidsSource(BaseSource):
                 BidsExtra.RAW: raw,
             },
         )
-
-
-def municipal_sources(**settings: Any) -> list[BidsSource]:
-    """Returns one :class:`BidsSource` for every municipality in :data:`MUNICIPALITIES`."""
-    return [BidsSource(municipality, **settings) for municipality in MUNICIPALITIES]

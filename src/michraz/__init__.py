@@ -19,12 +19,11 @@ from michraz.sources import (
     BidsSource,
     GovExtra,
     GovSource,
-    Municipality,
     RmiExtra,
     RmiSource,
     Source,
     SourceName,
-    municipal_sources,
+    default_sources,
 )
 
 __all__ = [
@@ -37,7 +36,6 @@ __all__ = [
     "GovSource",
     "Michraz",
     "MichrazError",
-    "Municipality",
     "RmiExtra",
     "RmiSource",
     "Source",
@@ -47,7 +45,7 @@ __all__ = [
     "Tender",
     "TenderKind",
     "__version__",
-    "municipal_sources",
+    "default_sources",
     "to_csv",
     "to_dataframe",
     "to_dicts",

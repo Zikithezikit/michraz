@@ -6,7 +6,8 @@ a fresh fixture in a separate commit; never loosen the parser to hide it.
 
 import pytest
 
-from michraz import BeerShevaSource, BidsSource, GovSource, RmiSource, municipal_sources
+from michraz import BeerShevaSource, BidsSource, GovSource, RmiSource
+from michraz.sources import BUILT_IN
 
 pytestmark = pytest.mark.live
 
@@ -43,9 +44,9 @@ def test_gov_first_page_shape():
     assert not source.errors
 
 
-@pytest.mark.parametrize("source", municipal_sources(cache_dir=None), ids=lambda s: s.name)
-def test_municipal_bids_page_shape(source: BidsSource):
-    with source:
+@pytest.mark.parametrize("city", [c for c in BUILT_IN if issubclass(c, BidsSource)], ids=lambda c: c.name)
+def test_municipal_bids_page_shape(city: type[BidsSource]):
+    with city(cache_dir=None) as source:
         tenders = list(source.fetch())
     assert tenders, f"{source.name} lists no tenders"
     assert not source.errors

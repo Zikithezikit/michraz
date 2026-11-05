@@ -55,8 +55,27 @@ answer and its error is listed there too. `SourceUnavailableError` is raised onl
 
 ## Add a source
 
-Write a class with `name`, `description`, `attribution`, `errors` and a `fetch()` that yields `Tender`s, then pass
-it to `Michraz([MySource()])`.
+Subclass `BaseSource`. Say how to read the records and how to turn one into a `Tender`. Skipping bad records,
+reporting them in `errors` and dropping repeats is shared.
+
+```python
+from michraz.sources import BaseSource
+
+
+class MySource(BaseSource[dict]):
+    name = "my-city"
+    description = "My city's tenders"
+    attribution = "My City, my-city.example"
+
+    def records(self):
+        yield from self._client().get_json(self.name, "https://my-city.example/api/tenders")
+
+    def parse(self, record):
+        return Tender(source=self.name, source_id=record["id"], title=record["title"], attribution=self.attribution)
+```
+
+Then `Michraz([MySource()])`. A city that uses the shared `/bids/` page needs only a name, a publisher and a domain
+(see `michraz/sources/municipal.py`).
 
 ![Classes](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/classes.png)
 

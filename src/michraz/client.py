@@ -17,13 +17,9 @@ from michraz._http import (
 from michraz.errors import MichrazError
 from michraz.filters import TenderFilter, sort_by_deadline
 from michraz.models import Tender, TenderKind
-from michraz.sources import BaseSource, BeerShevaSource, GovSource, RmiSource, Source, municipal_sources
+from michraz.sources import BaseSource, Source, default_sources
 
 logger = logging.getLogger(__name__)
-
-
-def _default_sources() -> tuple[Source, ...]:
-    return (RmiSource(), BeerShevaSource(), GovSource(), *municipal_sources())
 
 
 class Michraz(Closeable):
@@ -35,8 +31,8 @@ class Michraz(Closeable):
             tenders = m.search(keyword="גינון", open_only=True)
 
     Args:
-        sources: Sources to search. Defaults to RMI, Beer Sheva, the central government and the municipalities in
-            :data:`michraz.sources.bids.MUNICIPALITIES`.
+        sources: Sources to search. Defaults to RMI, Beer Sheva, the central government and the municipalities listed in
+            :data:`michraz.sources.BUILT_IN`.
         cache_dir: Directory for cached responses. Defaults to ``~/.cache/michraz``. None disables the cache.
         cache_ttl: How long a cached response stays valid.
         min_interval: Minimum seconds between requests to the same host. Must be at least 0.5.
@@ -57,11 +53,7 @@ class Michraz(Closeable):
         min_interval: float = DEFAULT_MIN_INTERVAL,
     ) -> None:
         self._http = HttpClient(cache_dir=cache_dir, cache_ttl=cache_ttl, min_interval=min_interval)
-        self.sources: tuple[Source, ...] = (
-            tuple(sources)
-            if sources is not None
-            else (RmiSource(), BeerShevaSource(), GovSource(), *municipal_sources())
-        )
+        self.sources: tuple[Source, ...] = tuple(sources) if sources is not None else default_sources()
         names = [s.name for s in self.sources]
         if len(set(names)) != len(names):
             raise ValueError(f"source names must be unique, got {names}")

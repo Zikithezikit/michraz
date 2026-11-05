@@ -5,15 +5,19 @@ All notable changes are listed here. Format based on [Keep a Changelog](https://
 ## Unreleased
 
 ### Added
-- `BidsSource` and `municipal_sources()`: tenders of 12 municipalities that share the `/bids/` page layout (Akko,
-  Arad, Beit Shemesh, Dimona, Kfar Saba, Kiryat Motzkin, Nesher, Netivot, Nof HaGalil, Savyon, Tamra, Yavne). They
-  are part of the default sources. The CLI `--source` choices follow the default sources.
+- `BidsSource` and one small class per city for 12 municipalities that share the `/bids/` page layout (Akko, Arad,
+  Beit Shemesh, Dimona, Kfar Saba, Kiryat Motzkin, Nesher, Netivot, Nof HaGalil, Savyon, Tamra, Yavne). They are
+  part of the default sources.
+- `michraz.sources.BUILT_IN` and `default_sources()`: one registry of every built-in source. `SourceName` lists all
+  of them, and the CLI `--source` choices and the default search both follow the registry.
 - `GovSource` (`gov`): central-government tenders from mr.gov.il, read from the portal's HTML search. It is part of
   the default sources.
 - Tests use a fixed clock, so open/closed results no longer depend on the date the suite runs.
 - `HttpClient.get_text` for sources that serve HTML.
 
 ### Changed
+- `BaseSource` is now a template. A source implements `records()` and `parse(record)`, and the shared `fetch()`
+  skips and reports bad records and drops repeated tenders. `RmiSource.fetch()` is now lazy like the others.
 - `Tender.kind` (`TenderKind.TENDER` or `VACANCY`) and a `kind` filter on `Michraz.search` and the CLI
   (`--kind`). Staff vacancies that some municipal sites list beside their tenders are hidden by default. Pass
   `kind=None` for everything. The CSV has a new `kind` column.

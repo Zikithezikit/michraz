@@ -86,7 +86,7 @@ def _title(settlement: str | None, neighborhood: str | None, number: str | None,
     return TITLE_SEPARATOR.join(parts) if parts else (number or source_id)
 
 
-class RmiSource(BaseSource):
+class RmiSource(BaseSource[dict[str, Any]]):
     """Open land tenders of the Israel Land Authority.
 
     The API returns every match in one response, so there is no paging. Only ``settlement_code`` and
@@ -117,9 +117,12 @@ class RmiSource(BaseSource):
     def last_fetched(self) -> datetime | None:
         return self._client().cached_at(HttpMethod.POST, SEARCH_URL, payload=self._body(True, None, None))
 
-    def fetch(self) -> Iterator[Tender]:
-        """Yields all currently open tenders. Same as ``iter(search())``."""
-        return iter(self.search())
+    def records(self) -> Iterator[dict[str, Any]]:
+        """Yields the records of all currently open tenders."""
+        return self._read(active_only=True)
+
+    def record_id(self, record: dict[str, Any]) -> object:
+        return record.get(_Field.ID) if isinstance(record, dict) else None
 
     def search(
         self,
@@ -157,7 +160,35 @@ class RmiSource(BaseSource):
             SourceUnavailableError: If the service cannot be reached.
             SourceFormatError: If the response is not a list of records.
         """
-        self.errors = []
+        return list(
+            self._tenders(
+                self._read(
+                    active_only=active_only,
+                    settlement_code=settlement_code,
+                    neighborhood=neighborhood,
+                    tender_number=tender_number,
+                    region=region,
+                    tender_type=tender_type,
+                    purpose=purpose,
+                    status=status,
+                    raw_filters=raw_filters,
+                )
+            )
+        )
+
+    def _read(
+        self,
+        *,
+        active_only: bool,
+        settlement_code: int | None = None,
+        neighborhood: str | None = None,
+        tender_number: str | None = None,
+        region: int | None = None,
+        tender_type: int | None = None,
+        purpose: int | None = None,
+        status: int | None = None,
+        raw_filters: dict[str, Any] | None = None,
+    ) -> Iterator[dict[str, Any]]:
         body = self._body(active_only, settlement_code, neighborhood)
         body.update(raw_filters or {})
         payload = self._client().post_json(self.name, SEARCH_URL, body)
@@ -170,15 +201,10 @@ class RmiSource(BaseSource):
             _Field.PURPOSE: purpose,
             _Field.STATUS: status,
         }
-        tenders = []
         for record in payload:
-            try:
-                if any(v is not None and record.get(k) != v for k, v in wanted.items()):
-                    continue
-                tenders.append(self.parse(record))
-            except (KeyError, TypeError, ValueError, AttributeError) as exc:
-                self._skip(record.get(_Field.ID) if isinstance(record, dict) else None, exc)
-        return tenders
+            if isinstance(record, dict) and any(v is not None and record.get(k) != v for k, v in wanted.items()):
+                continue
+            yield record
 
     def parse(self, record: dict[str, Any]) -> Tender:
         """Converts one search result to a :class:`Tender`.

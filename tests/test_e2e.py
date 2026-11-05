@@ -11,10 +11,9 @@ import pytest
 from michraz import Michraz, to_csv, to_dicts
 from michraz.cli import main
 from michraz.sources.beersheva import API_URL
-from michraz.sources.bids import MUNICIPALITIES
 from michraz.sources.gov import SEARCH_URL as GOV_URL
 from michraz.sources.rmi import SEARCH_URL
-from tests.helpers import FIXTURES, GOV_EMPTY_PAGE, ckan, mock_municipalities
+from tests.helpers import CITIES, FIXTURES, GOV_EMPTY_PAGE, ckan, mock_municipalities
 
 
 @pytest.fixture
@@ -123,16 +122,16 @@ def every_service(respx_mock, rmi_records, bs_records):
     respx_mock.post(SEARCH_URL).respond(json=rmi_records)
     respx_mock.get(API_URL).respond(json=ckan(bs_records))
     respx_mock.get(GOV_URL).respond(text=(FIXTURES / "gov_search.html").read_text(encoding="utf-8"))
-    for city in MUNICIPALITIES:
-        body = (FIXTURES / f"bids_{city.key}.html").read_text(encoding="utf-8")
-        respx_mock.get(f"https://{city.domain}{city.path}").respond(text=body)
+    for city in CITIES:
+        body = (FIXTURES / f"bids_{city.name}.html").read_text(encoding="utf-8")
+        respx_mock.get(city.url).respond(text=body)
 
 
 def test_every_default_source_feeds_one_search_and_one_csv(every_service, tmp_path):
     with Michraz(cache_dir=None) as m:
         tenders = m.search(kind=None)
         assert m.last_errors == []
-    assert {t.source for t in tenders} == {"rmi", "beersheva", "gov", *(c.key for c in MUNICIPALITIES)}
+    assert {t.source for t in tenders} == {"rmi", "beersheva", "gov", *(c.name for c in CITIES)}
 
     path = tmp_path / "everything.csv"
     to_csv(tenders, path)
@@ -142,11 +141,11 @@ def test_every_default_source_feeds_one_search_and_one_csv(every_service, tmp_pa
 
 
 def test_one_municipal_site_down_leaves_the_rest_of_the_search_intact(every_service, respx_mock):
-    respx_mock.get(f"https://{MUNICIPALITIES[0].domain}{MUNICIPALITIES[0].path}").respond(status_code=503)
+    respx_mock.get(CITIES[0].url).respond(status_code=503)
     with Michraz(cache_dir=None) as m:
         tenders = m.search()
-        assert len(m.last_errors) == 1 and m.last_errors[0].startswith(f"{MUNICIPALITIES[0].key}:")
-    assert MUNICIPALITIES[0].key not in {t.source for t in tenders}
+        assert len(m.last_errors) == 1 and m.last_errors[0].startswith(f"{CITIES[0].name}:")
+    assert CITIES[0].name not in {t.source for t in tenders}
     assert {"rmi", "gov", "kfar-saba"} <= {t.source for t in tenders}
 
 
