@@ -164,3 +164,15 @@ def test_a_vacancy_is_recognized_by_its_title_when_the_table_has_no_caption():
 def test_the_caption_is_read_even_when_the_site_hides_it():
     tables = parse_tables('<table class="bids"><caption class="sr-only">דרושים</caption><tr><th>x</th></tr></table>')
     assert tables[0].caption == "דרושים"
+
+
+def test_tender_committee_pages_are_not_tenders(respx_mock, http):
+    body = (
+        '<table class="bids"><tr><th>שם המכרז</th><th>קטגוריה</th><th>תאריך סגירת המכרז</th></tr>'
+        '<tr><td><a href="./bids/?id=1">ועדת מכרזים 26\\1</a></td><td>ועדת מכרזים</td><td></td></tr>'
+        '<tr><td><a href="./bids/?id=2">פרוטוקול</a></td><td>ועדת מכרזים</td><td></td></tr>'
+        '<tr><td><a href="./bids/?id=3">מכרז 26\\6 מתקני פרסום</a></td><td>מכרזים</td><td>09/12/2026</td></tr></table>'
+    )
+    source, tenders = fetch(respx_mock, http, "kiryat-motzkin", body)
+    assert [t.source_id for t in tenders] == ["3"]
+    assert source.errors == []

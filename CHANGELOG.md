@@ -2,7 +2,7 @@
 
 All notable changes are listed here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
-## Unreleased
+## 0.2.0 (2026-11-05)
 
 ### Added
 - `BidsSource` and one small class per city for 12 municipalities that share the `/bids/` page layout (Akko, Arad,
@@ -23,6 +23,18 @@ All notable changes are listed here. Format based on [Keep a Changelog](https://
   `kind=None` for everything. The CSV has a new `kind` column.
 - `Michraz.search` no longer fails when only some sources are down. Their errors go to `last_errors`, and it raises
   only if every searched source failed.
+
+### Fixed
+- Kiryat Motzkin: rows about the tender committee (`ועדת מכרזים`, meetings and protocols) are no longer returned as
+  tenders.
+
+### Upgrading from 0.1.0
+- A default `Michraz()` search now reads 15 sources instead of 2. The first search takes about 20 seconds, mostly
+  because mr.gov.il is read page by page. Responses are cached for an hour, so later searches are fast. Use
+  `source="rmi"` (or any other name) to search one source.
+- Every `Tender` has a `kind`, and `to_dicts` and the CSV include it. `Michraz.search` hides staff vacancies by
+  default. Pass `kind=None` to get everything.
+- `RmiSource.fetch()` returns a lazy iterator like the other sources. Use `search()` for a list.
 
 ## 0.1.0 (2026-11-05)
 
