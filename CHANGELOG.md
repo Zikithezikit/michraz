@@ -7,6 +7,7 @@ All notable changes are listed here. Format based on [Keep a Changelog](https://
 ### Added
 - `GovSource` (`gov`): central-government tenders from mr.gov.il, read from the portal's HTML search. It is part of
   the default sources.
+- Tests use a fixed clock, so open/closed results no longer depend on the date the suite runs.
 - `HttpClient.get_text` for sources that serve HTML.
 
 ## 0.1.0 (2026-11-05)

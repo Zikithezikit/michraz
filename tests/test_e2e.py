@@ -4,6 +4,7 @@ import csv
 import json
 import subprocess
 import sys
+from datetime import date
 
 import pytest
 
@@ -12,7 +13,7 @@ from michraz.cli import main
 from michraz.sources.beersheva import API_URL
 from michraz.sources.gov import SEARCH_URL as GOV_URL
 from michraz.sources.rmi import SEARCH_URL
-from tests.helpers import GOV_EMPTY_PAGE, ckan
+from tests.helpers import FIXTURES, GOV_EMPTY_PAGE, ckan
 
 
 @pytest.fixture
@@ -70,3 +71,44 @@ def test_one_bad_record_does_not_kill_the_batch(respx_mock, rmi_records, bs_reco
 def test_module_entry_point_runs():
     done = subprocess.run([sys.executable, "-m", "michraz", "--version"], capture_output=True, text=True, check=True)
     assert done.stdout.startswith("michraz ")
+
+
+@pytest.fixture
+def all_services(respx_mock, rmi_records, bs_records):
+    respx_mock.post(SEARCH_URL).respond(json=rmi_records)
+    respx_mock.get(API_URL).respond(json=ckan(bs_records))
+    respx_mock.get(GOV_URL).respond(text=(FIXTURES / "gov_search.html").read_text(encoding="utf-8"))
+
+
+def test_every_default_source_contributes_and_exports(all_services, tmp_path):
+    with Michraz(cache_dir=None) as m:
+        tenders = m.search()
+        assert m.last_errors == []
+    assert {t.source for t in tenders} == {"rmi", "beersheva", "gov"}
+
+    gov = [t for t in tenders if t.source == "gov"]
+    assert len(gov) == 5
+    assert all(t.url.startswith("https://mr.gov.il/") and t.publisher and t.deadline for t in gov)
+
+    path = tmp_path / "all.csv"
+    to_csv(tenders, path)
+    with open(path, encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert {r["source"] for r in rows} == {"rmi", "beersheva", "gov"}
+    assert all("mr.gov.il" in r["attribution"] for r in rows if r["source"] == "gov")
+
+
+def test_gov_keyword_and_window_filters(all_services):
+    with Michraz(cache_dir=None) as m:
+        hits = m.search(keyword="מנתחים", source="gov")
+        window = m.search(source="gov", closing_after=date(2026, 12, 1), closing_before=date(2026, 12, 31))
+    assert [t.source_id for t in hits] == ["4000623708"]
+    assert window and all(date(2026, 12, 1) <= t.deadline.date() < date(2026, 12, 31) for t in window)
+
+
+def test_cli_prints_government_tenders_as_json(all_services, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr("michraz.cli.DEFAULT_CACHE_DIR", tmp_path / "cache")
+    assert main(["search", "--source", "gov", "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert len(out) == 5 and {t["source"] for t in out} == {"gov"}
+    assert all("mr.gov.il" in t["attribution"] for t in out)
