@@ -53,7 +53,7 @@ def test_csv_columns_are_tender_attributes_in_a_fixed_order():
     fields = {f.name for f in dataclasses.fields(Tender)}
     assert {c.value for c in CsvColumn} <= fields
     assert CSV_COLUMNS == (
-        "source", "source_id", "number", "title", "publisher", "deadline", "winner", "url", "attribution"
+        "source", "source_id", "kind", "number", "title", "publisher", "deadline", "winner", "url", "attribution"
     )  # fmt: skip
 
 

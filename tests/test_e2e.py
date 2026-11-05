@@ -130,7 +130,7 @@ def every_service(respx_mock, rmi_records, bs_records):
 
 def test_every_default_source_feeds_one_search_and_one_csv(every_service, tmp_path):
     with Michraz(cache_dir=None) as m:
-        tenders = m.search()
+        tenders = m.search(kind=None)
         assert m.last_errors == []
     assert {t.source for t in tenders} == {"rmi", "beersheva", "gov", *(c.key for c in MUNICIPALITIES)}
 
@@ -152,6 +152,26 @@ def test_one_municipal_site_down_leaves_the_rest_of_the_search_intact(every_serv
 
 def test_cli_searches_one_municipality(every_service, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("michraz.cli.DEFAULT_CACHE_DIR", tmp_path / "cache")
-    assert main(["search", "--source", "kfar-saba", "--keyword", "מועדון"]) == 0
+    assert main(["search", "--source", "kfar-saba", "--keyword", "מועדון", "--kind", "all"]) == 0
     out = capsys.readouterr().out
     assert "kfar-saba" in out and "עיריית כפר סבא" in out and "1 tender" in out
+
+
+def test_vacancies_are_hidden_by_default_and_shown_on_request(every_service):
+    from michraz import TenderKind
+
+    with Michraz(cache_dir=None) as m:
+        default = m.search(source="kfar-saba")
+        vacancies = m.search(source="kfar-saba", kind=TenderKind.VACANCY)
+        both = m.search(source="kfar-saba", kind=None)
+    assert {t.kind for t in default} == {TenderKind.TENDER}
+    assert {t.kind for t in vacancies} == {TenderKind.VACANCY} and vacancies
+    assert len(both) == len(default) + len(vacancies)
+
+
+def test_cli_kind_option(every_service, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr("michraz.cli.DEFAULT_CACHE_DIR", tmp_path / "cache")
+    assert main(["search", "--source", "kfar-saba", "--keyword", "מועדון"]) == 0
+    assert "0 tenders" in capsys.readouterr().out
+    assert main(["search", "--source", "kfar-saba", "--keyword", "מועדון", "--kind", "vacancy"]) == 0
+    assert "1 vacancy" in capsys.readouterr().out

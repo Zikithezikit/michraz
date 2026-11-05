@@ -11,7 +11,7 @@ from michraz._version import __version__
 from michraz.client import Michraz
 from michraz.errors import MichrazError, SourceFormatError, SourceUnavailableError
 from michraz.export import to_csv, to_dataframe, to_dicts
-from michraz.models import Document, Tender
+from michraz.models import Document, Tender, TenderKind
 from michraz.sources import (
     BeerShevaExtra,
     BeerShevaSource,
@@ -45,6 +45,7 @@ __all__ = [
     "SourceFormatError",
     "SourceUnavailableError",
     "Tender",
+    "TenderKind",
     "__version__",
     "municipal_sources",
     "to_csv",

@@ -17,7 +17,7 @@ from michraz._version import __version__
 from michraz.client import Michraz, _default_sources
 from michraz.errors import MichrazError
 from michraz.export import to_csv, to_dicts
-from michraz.models import Tender
+from michraz.models import Tender, TenderKind
 from michraz.sources import BaseSource
 
 PROGRAM = "michraz"
@@ -26,6 +26,9 @@ STATE_OPEN = "open"
 STATE_CLOSED = "closed"
 TABLE_HEADER = ("SOURCE", "NUMBER", "DEADLINE", "STATE")
 TITLE_HEADER = "TITLE"
+
+
+ALL_KINDS = "all"
 
 
 class Command(StrEnum):
@@ -62,6 +65,12 @@ def _build_parser() -> argparse.ArgumentParser:
     search.add_argument(
         "--source", choices=[source.name for source in _default_sources()], help="search a single source"
     )
+    search.add_argument(
+        "--kind",
+        choices=[*(kind.value for kind in TenderKind), ALL_KINDS],
+        default=TenderKind.TENDER.value,
+        help="tenders (default), staff vacancies that some municipalities list beside them, or all",
+    )
     search.add_argument("--csv", metavar="FILE", help="also write the results to a CSV file (UTF-8 with BOM)")
     search.add_argument("--json", action="store_true", help="print JSON instead of a table")
 
@@ -79,7 +88,7 @@ def _clip(text: str, width: int) -> str:
     return text if len(text) <= width else text[: width - 1] + ELLIPSIS
 
 
-def _print_table(tenders: Sequence[Tender]) -> None:
+def _print_table(tenders: Sequence[Tender], kind: str) -> None:
     # Hebrew is printed in logical order and the terminal lays it out. The title goes last so the
     # fixed-width columns stay aligned whatever the text direction.
     header = TABLE_HEADER
@@ -102,20 +111,22 @@ def _print_table(tenders: Sequence[Tender]) -> None:
     print(line(header, TITLE_HEADER))
     for cells, tender in zip(rows, tenders, strict=True):
         print(line(cells, _clip(tender.title, title_width)))
-    print(f"\n{len(rows)} tender{'' if len(rows) == 1 else 's'}")
+    singular, plural = ("vacancy", "vacancies") if kind == TenderKind.VACANCY else ("tender", "tenders")
+    print(f"\n{len(rows)} {singular if len(rows) == 1 else plural}")
     for credit in sorted({t.attribution for t in tenders}):
         print(f"Data: {credit}")
 
 
 def _search(args: argparse.Namespace, m: Michraz) -> int:
-    tenders = m.search(keyword=args.keyword, open_only=args.open, source=args.source)
+    kind = None if args.kind == ALL_KINDS else TenderKind(args.kind)
+    tenders = m.search(keyword=args.keyword, open_only=args.open, source=args.source, kind=kind)
     if args.csv:
         count = to_csv(tenders, args.csv)
         print(f"wrote {count} tenders to {args.csv}", file=sys.stderr)
     if args.json:
         print(json.dumps(to_dicts(tenders), ensure_ascii=False, indent=2))
     else:
-        _print_table(tenders)
+        _print_table(tenders, args.kind)
     for message in m.last_errors:
         print(f"warning: {message}", file=sys.stderr)
     return ExitCode.OK

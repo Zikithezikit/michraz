@@ -16,7 +16,7 @@ from michraz._http import (
 )
 from michraz.errors import MichrazError
 from michraz.filters import TenderFilter, sort_by_deadline
-from michraz.models import Tender
+from michraz.models import Tender, TenderKind
 from michraz.sources import BaseSource, BeerShevaSource, GovSource, RmiSource, Source, municipal_sources
 
 logger = logging.getLogger(__name__)
@@ -77,6 +77,7 @@ class Michraz(Closeable):
         source: str | None = None,
         closing_before: datetime | date | None = None,
         closing_after: datetime | date | None = None,
+        kind: TenderKind | None = TenderKind.TENDER,
     ) -> list[Tender]:
         """Fetches tenders from the sources and filters them.
 
@@ -87,6 +88,8 @@ class Michraz(Closeable):
             closing_before: Keep tenders whose deadline is before this moment. A date means the start of
                 that day in Asia/Jerusalem.
             closing_after: Keep tenders whose deadline is at or after this moment.
+            kind: Keep only this kind of listing. Defaults to tenders, which hides the staff vacancies that some
+                municipal sites list next to them. Pass ``TenderKind.VACANCY`` for only those, or None for both.
 
         Returns:
             Matching tenders sorted by deadline, earliest first. Tenders without a deadline come last.
@@ -98,7 +101,11 @@ class Michraz(Closeable):
                 sources fail, their errors are listed in :attr:`last_errors` and the rest are returned.
         """
         criteria = TenderFilter(
-            keyword=keyword, open_only=open_only, closing_before=closing_before, closing_after=closing_after
+            keyword=keyword,
+            open_only=open_only,
+            closing_before=closing_before,
+            closing_after=closing_after,
+            kind=kind,
         )
         self.last_errors = []
         tenders: list[Tender] = []

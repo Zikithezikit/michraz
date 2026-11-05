@@ -14,6 +14,9 @@ All notable changes are listed here. Format based on [Keep a Changelog](https://
 - `HttpClient.get_text` for sources that serve HTML.
 
 ### Changed
+- `Tender.kind` (`TenderKind.TENDER` or `VACANCY`) and a `kind` filter on `Michraz.search` and the CLI
+  (`--kind`). Staff vacancies that some municipal sites list beside their tenders are hidden by default. Pass
+  `kind=None` for everything. The CSV has a new `kind` column.
 - `Michraz.search` no longer fails when only some sources are down. Their errors go to `last_errors`, and it raises
   only if every searched source failed.
 
