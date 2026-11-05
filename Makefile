@@ -39,5 +39,6 @@ clean:  ## Remove build and cache files
 	rm -rf dist build *.egg-info src/*.egg-info .pytest_cache .mypy_cache .ruff_cache .coverage
 	find . -name __pycache__ -not -path './.venv/*' -prune -exec rm -rf {} +
 
-diagrams:  ## Re-render docs/images from docs/diagrams (needs Graphviz and the Inter font)
-	for f in docs/diagrams/*.dot; do dot -Tpng -Gdpi=200 $$f -o docs/images/$$(basename $$f .dot).png; done
+diagrams:  ## Re-render docs/images from docs/diagrams (needs draw.io desktop and Graphviz)
+	for f in docs/diagrams/*.drawio; do drawio -x -f png -s 2 -b 16 --no-sandbox -o docs/images/$$(basename $$f .drawio).png $$f; done
+	dot -Tpng -Gdpi=200 docs/diagrams/cli-output.dot -o docs/images/cli-output.png
