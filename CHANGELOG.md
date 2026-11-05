@@ -2,7 +2,7 @@
 
 All notable changes are listed here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
-## Unreleased
+## 0.1.0 (2026-11-05)
 
 ### Added
 - `TenderFilter`, a frozen value object holding the search conditions (`matches`, `apply`). `Michraz.search` uses it.
