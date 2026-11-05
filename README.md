@@ -7,8 +7,9 @@
 
 Israeli public tenders (מכרזים) in Python. One `Tender` object, whichever site it came from.
 
-Sources today: Israel Land Authority land tenders, Beer Sheva municipal tenders, and central-government tenders
-from mr.gov.il. The first search reads about 25 pages from mr.gov.il, so it takes around 20 seconds. After that the
+Sources today: Israel Land Authority land tenders, central-government tenders (mr.gov.il), Beer Sheva, and 12 more
+municipalities (Akko, Arad, Beit Shemesh, Dimona, Kfar Saba, Kiryat Motzkin, Nesher, Netivot, Nof HaGalil, Savyon,
+Tamra, Yavne). The first search takes around 20 seconds because mr.gov.il is read page by page. After that the
 responses are cached for an hour.
 
 > Unofficial client. It can lag or miss tenders, and parsing can break when a source changes. Confirm deadlines on
@@ -49,8 +50,8 @@ michraz search --keyword גינון --csv gardening.csv
 
 ![Terminal output](https://raw.githubusercontent.com/Zikithezikit/michraz/main/docs/images/cli.png)
 
-A record that fails to parse is skipped and listed in `m.last_errors`. An unreachable source raises
-`SourceUnavailableError`. More scripts are in [examples](https://github.com/Zikithezikit/michraz/tree/main/examples).
+A record that fails to parse is skipped and listed in `m.last_errors`. If one source is down, the others still
+answer and its error is listed there too. `SourceUnavailableError` is raised only when every searched source fails. More scripts are in [examples](https://github.com/Zikithezikit/michraz/tree/main/examples).
 
 ## Add a source
 

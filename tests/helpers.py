@@ -5,6 +5,7 @@ from typing import Any
 
 from michraz import Tender
 from michraz._dates import JERUSALEM
+from michraz.sources.bids import MUNICIPALITIES
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -44,3 +45,12 @@ def make_tender(**overrides: Any) -> Tender:
 
 
 GOV_EMPTY_PAGE = "<p>נמצאו 0 תוצאות עבור ערך  במכרזים</p>"
+
+
+BIDS_EMPTY_PAGE = '<table class="bids"><tr><th>שם המכרז</th><th>מועד אחרון להגשה</th></tr></table>'
+
+
+def mock_municipalities(respx_mock: Any) -> None:
+    """Answers every municipal bids page with an empty table."""
+    for municipality in MUNICIPALITIES:
+        respx_mock.get(f"https://{municipality.domain}{municipality.path}").respond(text=BIDS_EMPTY_PAGE)

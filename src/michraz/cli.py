@@ -14,11 +14,11 @@ from michraz import _dates
 from michraz._enums import StrEnum
 from michraz._http import DEFAULT_CACHE_DIR
 from michraz._version import __version__
-from michraz.client import Michraz
+from michraz.client import Michraz, _default_sources
 from michraz.errors import MichrazError
 from michraz.export import to_csv, to_dicts
 from michraz.models import Tender
-from michraz.sources import BaseSource, SourceName
+from michraz.sources import BaseSource
 
 PROGRAM = "michraz"
 DATE_FORMAT = "%Y-%m-%d %H:%M"
@@ -59,7 +59,9 @@ def _build_parser() -> argparse.ArgumentParser:
     search = commands.add_parser(Command.SEARCH.value, parents=[common], help="search tenders")
     search.add_argument("--keyword", "-k", help="text to look for in the title or number")
     search.add_argument("--open", action="store_true", help="only tenders that can still receive submissions")
-    search.add_argument("--source", choices=[name.value for name in SourceName], help="search a single source")
+    search.add_argument(
+        "--source", choices=[source.name for source in _default_sources()], help="search a single source"
+    )
     search.add_argument("--csv", metavar="FILE", help="also write the results to a CSV file (UTF-8 with BOM)")
     search.add_argument("--json", action="store_true", help="print JSON instead of a table")
 

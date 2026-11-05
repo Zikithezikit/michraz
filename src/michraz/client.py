@@ -14,11 +14,16 @@ from michraz._http import (
     DEFAULT_MIN_INTERVAL,
     HttpClient,
 )
+from michraz.errors import MichrazError
 from michraz.filters import TenderFilter, sort_by_deadline
 from michraz.models import Tender
-from michraz.sources import BaseSource, BeerShevaSource, GovSource, RmiSource, Source
+from michraz.sources import BaseSource, BeerShevaSource, GovSource, RmiSource, Source, municipal_sources
 
 logger = logging.getLogger(__name__)
+
+
+def _default_sources() -> tuple[Source, ...]:
+    return (RmiSource(), BeerShevaSource(), GovSource(), *municipal_sources())
 
 
 class Michraz(Closeable):
@@ -30,7 +35,8 @@ class Michraz(Closeable):
             tenders = m.search(keyword="גינון", open_only=True)
 
     Args:
-        sources: Sources to search. Defaults to RMI, Beer Sheva and the central government.
+        sources: Sources to search. Defaults to RMI, Beer Sheva, the central government and the municipalities in
+            :data:`michraz.sources.bids.MUNICIPALITIES`.
         cache_dir: Directory for cached responses. Defaults to ``~/.cache/michraz``. None disables the cache.
         cache_ttl: How long a cached response stays valid.
         min_interval: Minimum seconds between requests to the same host. Must be at least 0.5.
@@ -52,7 +58,9 @@ class Michraz(Closeable):
     ) -> None:
         self._http = HttpClient(cache_dir=cache_dir, cache_ttl=cache_ttl, min_interval=min_interval)
         self.sources: tuple[Source, ...] = (
-            tuple(sources) if sources is not None else (RmiSource(), BeerShevaSource(), GovSource())
+            tuple(sources)
+            if sources is not None
+            else (RmiSource(), BeerShevaSource(), GovSource(), *municipal_sources())
         )
         names = [s.name for s in self.sources]
         if len(set(names)) != len(names):
@@ -85,17 +93,28 @@ class Michraz(Closeable):
 
         Raises:
             ValueError: If ``source`` names no known source or a datetime bound is naive.
-            SourceUnavailableError: If a source cannot be reached.
-            SourceFormatError: If a source answers in an unexpected shape.
+            SourceUnavailableError: If every searched source cannot be reached.
+            SourceFormatError: If every searched source answers in an unexpected shape. When only some
+                sources fail, their errors are listed in :attr:`last_errors` and the rest are returned.
         """
         criteria = TenderFilter(
             keyword=keyword, open_only=open_only, closing_before=closing_before, closing_after=closing_after
         )
         self.last_errors = []
         tenders: list[Tender] = []
-        for src in self._select(source):
-            tenders.extend(src.fetch())
+        chosen = self._select(source)
+        failures: list[MichrazError] = []
+        for src in chosen:
+            try:
+                tenders.extend(list(src.fetch()))
+            except MichrazError as exc:
+                logger.warning("%s failed: %s", src.name, exc)
+                failures.append(exc)
+                self.last_errors.append(str(exc))
+                continue
             self.last_errors.extend(src.errors)
+        if failures and len(failures) == len(chosen):
+            raise failures[0]
         return sort_by_deadline(criteria.apply(tenders))
 
     def _select(self, name: str | None) -> tuple[Source, ...]:

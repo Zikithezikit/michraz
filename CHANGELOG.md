@@ -5,10 +5,17 @@ All notable changes are listed here. Format based on [Keep a Changelog](https://
 ## Unreleased
 
 ### Added
+- `BidsSource` and `municipal_sources()`: tenders of 12 municipalities that share the `/bids/` page layout (Akko,
+  Arad, Beit Shemesh, Dimona, Kfar Saba, Kiryat Motzkin, Nesher, Netivot, Nof HaGalil, Savyon, Tamra, Yavne). They
+  are part of the default sources. The CLI `--source` choices follow the default sources.
 - `GovSource` (`gov`): central-government tenders from mr.gov.il, read from the portal's HTML search. It is part of
   the default sources.
 - Tests use a fixed clock, so open/closed results no longer depend on the date the suite runs.
 - `HttpClient.get_text` for sources that serve HTML.
+
+### Changed
+- `Michraz.search` no longer fails when only some sources are down. Their errors go to `last_errors`, and it raises
+  only if every searched source failed.
 
 ## 0.1.0 (2026-11-05)
 
