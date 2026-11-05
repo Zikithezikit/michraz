@@ -111,7 +111,7 @@ def _item_id(url: str | None) -> str | None:
     return ids[0] if ids else None
 
 
-class BeerShevaSource(BaseSource):
+class BeerShevaSource(BaseSource[dict[str, Any]]):
     """Tenders of the Beer Sheva municipality (dataset ``tender-br7``, refreshed weekly).
 
     ``source_id`` is the municipality's own list-item id taken from the tender page URL. The tender number is
@@ -138,27 +138,25 @@ class BeerShevaSource(BaseSource):
     def last_fetched(self) -> datetime | None:
         return self._client().cached_at(HttpMethod.GET, API_URL, self._params(0))
 
-    def fetch(self) -> Iterator[Tender]:
-        """Yields every tender in the dataset.
+    def records(self) -> Iterator[dict[str, Any]]:
+        """Yields every row of the dataset, page by page.
 
         Raises:
             SourceUnavailableError: If data.gov.il cannot be reached.
             SourceFormatError: If a page is not a CKAN datastore response.
         """
-        self.errors = []
         http = self._client()
         offset = 0
         while True:
             payload = http.get_json(self.name, API_URL, self._params(offset))
             records, total = self._unwrap(payload)
-            for record in records:
-                try:
-                    yield self.parse(record)
-                except (KeyError, TypeError, ValueError, AttributeError) as exc:
-                    self._skip(record.get(_Column.ROW_ID) if isinstance(record, dict) else None, exc)
+            yield from records
             offset += len(records)
             if not records or offset >= total:
                 return
+
+    def record_id(self, record: dict[str, Any]) -> object:
+        return record.get(_Column.ROW_ID) if isinstance(record, dict) else None
 
     def _unwrap(self, payload: Any) -> tuple[list[Any], int]:
         try:

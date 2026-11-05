@@ -8,6 +8,7 @@ from michraz._http import USER_AGENT, HttpMethod
 from michraz.cli import Command, ExitCode, main
 from michraz.export import CSV_COLUMNS, CsvColumn
 from michraz.models import RAW_EXTRA_KEY
+from michraz.sources import BUILT_IN
 from michraz.sources.beersheva import API_URL
 from michraz.sources.gov import SEARCH_URL as GOV_URL
 from michraz.sources.rmi import SEARCH_URL
@@ -27,7 +28,7 @@ def test_str_enum_behaves_like_its_value():
 
 def test_source_names_match_the_sources_and_the_cli():
     assert RmiSource.name == SourceName.RMI and BeerShevaSource.name == SourceName.BEERSHEVA
-    assert [s.value for s in SourceName] == ["rmi", "beersheva", "gov"]
+    assert [s.value for s in SourceName] == [source.name for source in BUILT_IN]
     assert RmiSource.name == "rmi" and type(RmiSource.name) is str  # plain str, so custom sources need no enum
 
 

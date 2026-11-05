@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterator
-from datetime import datetime
 from html.parser import HTMLParser
 from typing import Any
 
@@ -140,7 +139,7 @@ def parse_page(page: str) -> tuple[list[dict[str, Any]], int]:
     return parser.results, int(match.group(1).replace(",", ""))
 
 
-class GovSource(BaseSource):
+class GovSource(BaseSource[dict[str, Any]]):
     """Tenders of ministries and other central-government bodies, from mr.gov.il.
 
     Only tenders whose portal status says they are still taking offers are read (published, updated, new).
@@ -158,19 +157,14 @@ class GovSource(BaseSource):
     def _params(status: _Status, page: int) -> dict[str, Any]:
         return {"q": f":updateDate:archive:false:status:{status}", "text": "", "s": "TENDER", "page": page}
 
-    def last_fetched(self) -> datetime | None:
-        return None
-
-    def fetch(self) -> Iterator[Tender]:
-        """Yields every open tender, skipping records that fail to parse.
+    def records(self) -> Iterator[dict[str, Any]]:
+        """Yields every result of every open status, page by page.
 
         Raises:
             SourceUnavailableError: If mr.gov.il cannot be reached.
             SourceFormatError: If a page is not a portal search page.
         """
-        self.errors = []
         http = self._client()
-        seen: set[str] = set()
         for status in _Status:
             page, read = 0, 0
             while True:
@@ -179,31 +173,26 @@ class GovSource(BaseSource):
                     results, total = parse_page(text)
                 except ValueError as exc:
                     raise SourceFormatError(self.name, f"not a portal search page ({exc})") from exc
-                for result in results:
-                    try:
-                        tender = self.parse(result)
-                    except (KeyError, ValueError) as exc:
-                        self._skip(result.get("id"), exc)
-                        continue
-                    if tender.source_id not in seen:
-                        seen.add(tender.source_id)
-                        yield tender
+                yield from results
                 read += len(results)
                 page += 1
                 if not results or read >= total:
                     break
 
-    def parse(self, result: dict[str, Any]) -> Tender:
+    def record_id(self, record: dict[str, Any]) -> object:
+        return record.get("id")
+
+    def parse(self, record: dict[str, Any]) -> Tender:
         """Converts one parsed search result to a :class:`Tender`.
 
         Raises:
             KeyError: If a required value is missing.
             ValueError: If a date does not match the portal format.
         """
-        source_id, title = result["id"], result["title"]
+        source_id, title = record["id"], record["title"]
         if not source_id or not title:
             raise KeyError("id or title")
-        fields: dict[str, str] = result["fields"]
+        fields: dict[str, str] = record["fields"]
         return Tender(
             source=self.name,
             source_id=source_id,
@@ -215,5 +204,5 @@ class GovSource(BaseSource):
             deadline=_dates.parse_local(fields.get(_Label.DEADLINE), DATETIME_FORMAT),
             url=TENDER_URL.format(source_id),
             attribution=self.attribution,
-            extra={GovExtra.TYPE: result["type"], GovExtra.STATUS: fields.get(_Label.STATUS), GovExtra.RAW: result},
+            extra={GovExtra.TYPE: record["type"], GovExtra.STATUS: fields.get(_Label.STATUS), GovExtra.RAW: record},
         )

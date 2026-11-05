@@ -2,11 +2,13 @@
 
 from michraz.sources.base import BaseSource, Source, SourceName
 from michraz.sources.beersheva import BeerShevaExtra, BeerShevaSource
-from michraz.sources.bids import BidsExtra, BidsSource, Municipality, municipal_sources
+from michraz.sources.bids import BidsExtra, BidsSource
 from michraz.sources.gov import GovExtra, GovSource
+from michraz.sources.registry import BUILT_IN, default_sources
 from michraz.sources.rmi import RmiExtra, RmiSource
 
 __all__ = [
+    "BUILT_IN",
     "BaseSource",
     "BeerShevaExtra",
     "BeerShevaSource",
@@ -14,10 +16,9 @@ __all__ = [
     "BidsSource",
     "GovExtra",
     "GovSource",
-    "Municipality",
     "RmiExtra",
     "RmiSource",
     "Source",
     "SourceName",
-    "municipal_sources",
+    "default_sources",
 ]
