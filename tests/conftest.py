@@ -1,11 +1,19 @@
 import socket
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 import pytest
 
+from michraz._dates import JERUSALEM
 from michraz._http import HttpClient
 from tests.helpers import FakeClock, load_fixture
+
+
+@pytest.fixture(autouse=True)
+def _pinned_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fixes "now" to the day the fixtures were recorded, so open/closed results do not drift."""
+    monkeypatch.setattr("michraz._dates.now", lambda: datetime(2026, 11, 4, 12, 0, tzinfo=JERUSALEM))
 
 
 @pytest.fixture(autouse=True)
