@@ -6,22 +6,22 @@ import logging
 import os
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta
-from types import TracebackType
 
+from michraz._closeable import Closeable
 from michraz._http import (
     DEFAULT_CACHE_DIR,
     DEFAULT_CACHE_TTL,
     DEFAULT_MIN_INTERVAL,
     HttpClient,
 )
-from michraz.filters import apply_filters, sort_by_deadline
+from michraz.filters import TenderFilter, sort_by_deadline
 from michraz.models import Tender
 from michraz.sources import BaseSource, BeerShevaSource, RmiSource, Source
 
 logger = logging.getLogger(__name__)
 
 
-class Michraz:
+class Michraz(Closeable):
     """Searches several tender sources through one polite HTTP client.
 
     Use it as a context manager so the connection pool is closed:
@@ -57,7 +57,7 @@ class Michraz:
             raise ValueError(f"source names must be unique, got {names}")
         for source in self.sources:
             if isinstance(source, BaseSource):
-                source._bind(self._http)
+                source.bind(self._http)
         self.last_errors: list[str] = []
 
     def search(
@@ -86,25 +86,27 @@ class Michraz:
             SourceUnavailableError: If a source cannot be reached.
             SourceFormatError: If a source answers in an unexpected shape.
         """
-        chosen = self.sources
-        if source is not None:
-            chosen = tuple(s for s in self.sources if s.name == source)
-            if not chosen:
-                known = ", ".join(s.name for s in self.sources)
-                raise ValueError(f"unknown source {source!r}; known sources: {known}")
+        criteria = TenderFilter(
+            keyword=keyword, open_only=open_only, closing_before=closing_before, closing_after=closing_after
+        )
         self.last_errors = []
         tenders: list[Tender] = []
-        for src in chosen:
+        for src in self._select(source):
             tenders.extend(src.fetch())
             self.last_errors.extend(src.errors)
-        kept = apply_filters(
-            tenders,
-            keyword=keyword,
-            open_only=open_only,
-            closing_before=closing_before,
-            closing_after=closing_after,
-        )
-        return sort_by_deadline(kept)
+        return sort_by_deadline(criteria.apply(tenders))
+
+    def _select(self, name: str | None) -> tuple[Source, ...]:
+        if name is None:
+            return self.sources
+        chosen = tuple(s for s in self.sources if s.name == name)
+        if not chosen:
+            known = ", ".join(s.name for s in self.sources)
+            raise ValueError(f"unknown source {name!r}; known sources: {known}")
+        return chosen
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(sources={[s.name for s in self.sources]})"
 
     def close(self) -> None:
         """Closes the shared connection pool."""
@@ -112,11 +114,3 @@ class Michraz:
         for source in self.sources:
             if isinstance(source, BaseSource):
                 source.close()
-
-    def __enter__(self) -> Michraz:
-        return self
-
-    def __exit__(
-        self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: TracebackType | None
-    ) -> None:
-        self.close()

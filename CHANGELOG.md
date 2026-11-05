@@ -5,6 +5,7 @@ All notable changes are listed here. Format based on [Keep a Changelog](https://
 ## Unreleased
 
 ### Added
+- `TenderFilter`, a frozen value object holding the search conditions (`matches`, `apply`). `Michraz.search` uses it.
 - Enums instead of loose strings: `SourceName`, `RmiExtra` and `BeerShevaExtra` (keys of `Tender.extra`). Members
   equal the plain strings, so existing code keeps working.
 - `Michraz` facade: search every source with one call, filter by keyword, open status, source and closing date,

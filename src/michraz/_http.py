@@ -17,11 +17,11 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from http import HTTPStatus
 from pathlib import Path
-from types import TracebackType
 from typing import Any
 
 import httpx
 
+from michraz._closeable import Closeable
 from michraz._enums import StrEnum
 from michraz._version import __version__
 from michraz.errors import SourceFormatError, SourceUnavailableError
@@ -126,7 +126,7 @@ def _request_key(method: HttpMethod, url: str, payload: Any) -> str:
     return hashlib.sha256(f"{method}\n{url}\n{body}".encode()).hexdigest()
 
 
-class HttpClient:
+class HttpClient(Closeable):
     """Rate-limited, caching JSON client with bounded retries.
 
     Args:
@@ -170,14 +170,6 @@ class HttpClient:
         """Closes the underlying connection pool if this object created it."""
         if self._owns_client:
             self._client.close()
-
-    def __enter__(self) -> HttpClient:
-        return self
-
-    def __exit__(
-        self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: TracebackType | None
-    ) -> None:
-        self.close()
 
     def get_json(self, source: str, url: str, params: Mapping[str, Any] | None = None) -> Any:
         """Fetches ``url`` with GET and returns the decoded JSON body.

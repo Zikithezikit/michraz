@@ -1,8 +1,9 @@
-from datetime import date, datetime
+import dataclasses
+from datetime import date, datetime, timedelta
 
 import pytest
 
-from michraz.filters import apply_filters, matches_keyword, normalize, sort_by_deadline
+from michraz.filters import TenderFilter, apply_filters, matches_keyword, normalize, sort_by_deadline
 from tests.helpers import at, make_tender
 
 NOW = at(2026, 11, 4, 12, 0)
@@ -87,3 +88,20 @@ def test_sort_puts_unknown_deadlines_last_and_is_stable():
     none1 = make_tender(source_id="n1")
     none2 = make_tender(source_id="n2")
     assert [t.source_id for t in sort_by_deadline([none1, a, none2, b])] == ["b", "a", "n1", "n2"]
+
+
+def test_tender_filter_is_reusable_and_immutable():
+    criteria = TenderFilter(keyword="גינון", open_only=True, now=NOW)
+    open_t = make_tender(title="גינון", deadline=NOW + timedelta(days=1))
+    closed = make_tender(source_id="2", title="גינון", deadline=NOW - timedelta(days=1))
+    assert criteria.apply([open_t, closed]) == [open_t]
+    assert criteria.matches(open_t) and not criteria.matches(closed)
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        criteria.keyword = "x"  # type: ignore[misc]
+
+
+def test_tender_filter_rejects_naive_bounds_on_creation():
+    with pytest.raises(ValueError, match="timezone-aware"):
+        TenderFilter(closing_before=datetime(2026, 12, 1))
+    with pytest.raises(ValueError, match="timezone-aware"):
+        TenderFilter(now=datetime(2026, 12, 1))

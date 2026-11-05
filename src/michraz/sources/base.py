@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
+from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from datetime import datetime, timedelta
-from types import TracebackType
 from typing import Protocol, runtime_checkable
 
+from michraz._closeable import Closeable
 from michraz._enums import StrEnum
 from michraz._http import DEFAULT_CACHE_DIR, DEFAULT_CACHE_TTL, DEFAULT_MIN_INTERVAL, HttpClient
 from michraz.models import Tender
@@ -46,7 +47,7 @@ class Source(Protocol):
         ...
 
 
-class BaseSource:
+class BaseSource(Closeable, ABC):
     """Shared plumbing for sources that read JSON over HTTP.
 
     A subclass sets ``name``, ``description`` and ``attribution`` and implements ``fetch``. Standalone use
@@ -71,18 +72,22 @@ class BaseSource:
         min_interval: float = DEFAULT_MIN_INTERVAL,
     ) -> None:
         self.errors: list[str] = []
-        self._settings = {"cache_dir": cache_dir, "cache_ttl": cache_ttl, "min_interval": min_interval}
+        self._cache_dir = cache_dir
+        self._cache_ttl = cache_ttl
+        self._min_interval = min_interval
         self._http: HttpClient | None = None
         self._owns_http = False
 
-    def _bind(self, http: HttpClient) -> None:
+    def bind(self, http: HttpClient) -> None:
         """Shares a client with this source unless it already built its own."""
         if self._http is None:
             self._http = http
 
     def _client(self) -> HttpClient:
         if self._http is None:
-            self._http = HttpClient(**self._settings)  # type: ignore[arg-type]
+            self._http = HttpClient(
+                cache_dir=self._cache_dir, cache_ttl=self._cache_ttl, min_interval=self._min_interval
+            )
             self._owns_http = True
         return self._http
 
@@ -91,8 +96,9 @@ class BaseSource:
         self.errors.append(message)
         logger.warning(message)
 
+    @abstractmethod
     def fetch(self) -> Iterator[Tender]:
-        raise NotImplementedError
+        """Yields every tender the source offers. A bad record is skipped and reported in ``errors``."""
 
     def last_fetched(self) -> datetime | None:
         """Returns when this source last fetched data into the cache, or None if it never did."""
@@ -104,11 +110,3 @@ class BaseSource:
             self._http.close()
             self._http = None
             self._owns_http = False
-
-    def __enter__(self) -> BaseSource:
-        return self
-
-    def __exit__(
-        self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: TracebackType | None
-    ) -> None:
-        self.close()

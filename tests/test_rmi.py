@@ -11,7 +11,7 @@ from michraz.sources.rmi import SEARCH_URL, settlements
 @pytest.fixture
 def source(http):
     src = RmiSource()
-    src._bind(http)
+    src.bind(http)
     return src
 
 

@@ -110,3 +110,15 @@ def test_second_search_uses_the_cache(respx_mock, rmi_records, tmp_path):
         m.search()
         m.search()
     assert route.call_count == 1
+
+
+def test_repr_lists_source_names():
+    with Michraz(cache_dir=None) as m:
+        assert repr(m) == "Michraz(sources=['rmi', 'beersheva'])"
+
+
+def test_base_source_is_abstract():
+    from michraz.sources import BaseSource
+
+    with pytest.raises(TypeError):
+        BaseSource()  # type: ignore[abstract]

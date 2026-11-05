@@ -12,7 +12,7 @@ from tests.helpers import ckan
 @pytest.fixture
 def source(http):
     src = BeerShevaSource()
-    src._bind(http)
+    src.bind(http)
     return src
 
 
